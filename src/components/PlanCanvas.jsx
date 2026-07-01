@@ -25,16 +25,20 @@ export default function PlanCanvas() {
   const [view, setView] = useState({ scale: 1, x: 0, y: 0 });
   const [hover, setHover] = useState(null); // world-space cursor for rubber-band previews
 
-  // measure container
+  // measure container — a ResizeObserver catches layout changes (collapsing a
+  // side panel, toggling the sidebar) that don't fire a window resize event,
+  // so the stage always fills the space and re-fits.
   useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
     const measure = () => {
-      if (!wrapRef.current) return;
-      const r = wrapRef.current.getBoundingClientRect();
-      setSize({ w: r.width, h: r.height });
+      const r = el.getBoundingClientRect();
+      setSize((s) => (Math.round(s.w) === Math.round(r.width) && Math.round(s.h) === Math.round(r.height) ? s : { w: r.width, h: r.height }));
     };
     measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
   // fit plan to view whenever the background or container changes
