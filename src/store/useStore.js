@@ -446,6 +446,27 @@ export const useStore = create(
           return patch;
         }),
 
+      // remove an imported page (sheet). Renumbers pageImgs + trace page indices
+      // so remaining sheets stay consistent; drops traces on the deleted page.
+      removePage: (i) =>
+        set((s) => {
+          if (s.pages.length <= 1) return {};
+          const pages = s.pages.filter((_, idx) => idx !== i);
+          const pageImgs = {};
+          Object.entries(s.pageImgs).forEach(([k, v]) => { const ki = +k; if (ki === i) return; pageImgs[ki > i ? ki - 1 : ki] = v; });
+          const traces = s.traces.filter((t) => (t.page ?? 0) !== i).map((t) => ((t.page ?? 0) > i ? { ...t, page: t.page - 1 } : t));
+          let activePage = s.activePage;
+          if (activePage === i) activePage = Math.min(i, pages.length - 1);
+          else if (activePage > i) activePage -= 1;
+          const pg = pages[activePage];
+          return {
+            pages, pageImgs, traces, activePage,
+            bg: pg.type === "demo" ? { type: "demo", w: pg.w, h: pg.h } : { type: "img", href: pg.href, w: pg.w, h: pg.h },
+            imgEl: pageImgs[activePage] || null,
+            selId: null, suggestions: [], draft: [],
+          };
+        }),
+
       setPage: (i) =>
         set((s) => {
           const pg = s.pages[i];
