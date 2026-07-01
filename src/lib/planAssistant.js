@@ -48,7 +48,7 @@ export async function generatePlanSummary({ sheetIndex = [], pagesText = [] }) {
 { "summary": "2-4 sentence overview: building type, size, and scope of work",
   "trades": [ { "trade": "estimator trade name", "asm": "best-match key or null", "sheets": ["A101","S101"], "scope": "one short line" } ] }
 Detect EVERY trade actually represented in the sheet index / text — e.g. Sitework, Concrete, Masonry, Thin brick / veneer, EIFS, Structural steel, Rough carpentry, Drywall & framing, Roofing, Doors & hardware, Storefront / glazing, Finishes, FF&E, Fire protection, Plumbing, HVAC, Electrical. Do not invent trades that aren't in the set. Cite the specific sheets for each trade.
-For "asm", pick the single best matching takeoff assembly key from this list (or null if none fits): slab, footing, foundwall, brick, cmu, joists, eifs, roofing, doors, storefront, drywall, paint, act, flooring, fixtures, rtu, lighting, device, woodfence, chainlink, fencegate, sitewall.`;
+For "asm", pick the single best matching takeoff assembly key from this list (or null if none fits): slab, footing, foundwall, brick, cmu, joists, eifs, roofing, doors, windows, storefront, drywall, paint, act, flooring, fixtures, rtu, lighting, device, woodfence, chainlink, fencegate, sitewall.`;
 
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -100,7 +100,7 @@ export async function askAssistant({ question, history = [], sheetIndex = [], ac
 
   const content = [{ type: "text", text: `SHEET INDEX (${sheetIndex.length} sheets):\n${idx}\n\n${cur}\n\nQUESTION: ${question}` }];
   if (imageUrl) {
-    try { content.push({ type: "image_url", image_url: { url: await toDataUrl(imageUrl) } }); } catch { /* skip image */ }
+    try { content.push({ type: "image_url", image_url: { url: await toDataUrl(imageUrl), detail: "high" } }); } catch { /* skip image */ }
   }
 
   const messages = [

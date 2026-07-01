@@ -526,13 +526,18 @@ export const useStore = create(
     }),
     {
       name: "plan-forge-v1",
-      version: 3,
-      // refresh a cached book when the built-in catalog changes (v2 added the
-      // labor/equipment model; v3 added Div 32 fencing) while keeping projects.
+      version: 4,
+      // v<3 (pre labor/equipment model) rebuilds the book; v3->4 MERGES any new
+      // built-in assemblies (fencing, windows) in without wiping price edits.
       migrate: (state, ver) => {
         if (ver < 3) {
           state.priceBook = clonePriceBook();
           state.bookMeta = { ...DEFAULT_BOOK_META };
+        } else if (ver < 4) {
+          const base = clonePriceBook();
+          const pb = { ...(state.priceBook || {}) };
+          for (const k of Object.keys(base)) if (!pb[k]) pb[k] = base[k];
+          state.priceBook = pb;
         }
         return state;
       },

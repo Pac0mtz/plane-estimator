@@ -71,7 +71,8 @@ function mockDetect({ bg }) {
 const SYSTEM = `You are a construction estimator's takeoff assistant. Look at this floor plan / elevation and detect the physical elements an estimator quantifies. Return STRICT JSON only.
 
 Detect and classify EACH element. Map it to one of these assembly keys (asm) — walls go to the material they're built of, so different wall types land on different layers:
-- doors -> each door leaf (type "count", one point per door). element e.g. "Entry door".
+- doors -> EACH door. Look for the arc / quarter-circle door-swing symbols and gaps in walls; one "count" point at each door. Cross-check the DOOR & WINDOW SCHEDULE (D1, D2…) for how many. element "Door".
+- windows -> EACH window. Look for the double/triple parallel-line window symbols set into the walls; one "count" point per window. Cross-check the schedule (W1, W2, W3…). element "Window".
 - drywall -> interior partition walls (type "linear", polyline along the wall). element "Interior partition".
 - brick -> thin-brick/masonry veneer wall runs (type "linear"). element "Exterior wall — brick".
 - cmu -> concrete masonry unit walls (type "linear"). element "CMU wall".
@@ -115,7 +116,7 @@ async function openaiDetect({ imageDataUrl, bg, key }) {
           role: "user",
           content: [
             { type: "text", text: "Detect takeoff regions. Return JSON only." },
-            { type: "image_url", image_url: { url: imageDataUrl } },
+            { type: "image_url", image_url: { url: imageDataUrl, detail: "high" } },
           ],
         },
       ],
@@ -158,7 +159,7 @@ Return STRICT JSON: { "paperInchesPerFoot": <number or 0>, "scaleNote": "<text o
       temperature: 0,
       messages: [
         { role: "system", content: sys },
-        { role: "user", content: [{ type: "text", text: "Read the scale. JSON only." }, { type: "image_url", image_url: { url } }] },
+        { role: "user", content: [{ type: "text", text: "Read the scale. JSON only." }, { type: "image_url", image_url: { url, detail: "high" } }] },
       ],
     }),
   });

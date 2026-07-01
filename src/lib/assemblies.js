@@ -93,6 +93,10 @@ export const ASSEMBLIES = {
       m("Hardware set + install", 1, 0, "ea", 340, 180),
     ],
   },
+  windows: {
+    name: "Window Unit", unit: "EA", geom: "count", div: "08 Openings",
+    materials: [m("Window + flashing + install", 1, 0, "ea", 420, 180, 0)],
+  },
   storefront: {
     name: "Aluminum Storefront + Glazing", unit: "SF", geom: "area", div: "08 Openings",
     materials: [m("Alum. framing + 1\" IGU + install", 1, 0.05, "SF", 42, 24, 1.5)],
