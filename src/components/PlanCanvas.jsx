@@ -17,7 +17,9 @@ function hexToRgba(hex, a) {
 export default function PlanCanvas() {
   const s = useStore();
   const { bg, imgEl, ppf, tool, layers, traces, draft, calib, measure, activeId, selId, activePage, suggestions } = s;
-  const pageTraces = traces.filter((t) => (t.page ?? 0) === activePage);
+  // traces are pinned to the plan image; don't draw them on the empty upload
+  // state (no backdrop) where they'd float at the wrong scale.
+  const pageTraces = bg.type === "empty" ? [] : traces.filter((t) => (t.page ?? 0) === activePage);
 
   const wrapRef = useRef(null);
   const stageRef = useRef(null);
