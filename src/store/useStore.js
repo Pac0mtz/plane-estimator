@@ -586,3 +586,6 @@ export const useStore = create(
     }
   )
 );
+
+// dev aid: reach the store from the console / preview harness for smoke tests
+if (typeof window !== "undefined") window.useStore = useStore;

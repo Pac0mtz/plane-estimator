@@ -5,13 +5,26 @@ import { ASSEMBLIES } from "../lib/assemblies.js";
 import { traceQty, centroid, flatPts } from "../lib/geometry.js";
 import { runAssistant } from "../lib/planAssistant.js";
 import { importPlanFile, ACCEPT } from "../lib/importPlan.js";
-import { Maximize, UploadCloud } from "lucide-react";
+import { Maximize, UploadCloud, Eye, EyeOff } from "lucide-react";
 import HoverCard from "./HoverCard.jsx";
 import CanvasSearch from "./CanvasSearch.jsx";
 
 function hexToRgba(hex, a) {
   const n = parseInt(hex.slice(1), 16);
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+
+// readable text colour for a coloured chip background (dark ink on light fills)
+function textOn(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const L = 0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
+  return L > 150 ? "#0f172a" : "#ffffff";
+}
+
+// confidence -> traffic-light colour for the little badge dot on AI suggestions
+function confColor(c) {
+  const v = c || 0;
+  return v >= 0.8 ? "#22c55e" : v >= 0.5 ? "#f59e0b" : "#ef4444";
 }
 
 export default function PlanCanvas() {
@@ -26,6 +39,7 @@ export default function PlanCanvas() {
   const [size, setSize] = useState({ w: 800, h: 600 });
   const [view, setView] = useState({ scale: 1, x: 0, y: 0 });
   const [hover, setHover] = useState(null); // world-space cursor for rubber-band previews
+  const [labelsOn, setLabelsOn] = useState(true); // show all quantity/AI chips vs. keep the sheet clean
 
   // measure container — a ResizeObserver catches layout changes (collapsing a
   // side panel, toggling the sidebar) that don't fire a window resize event,
@@ -151,7 +165,8 @@ export default function PlanCanvas() {
 
   return (
     <div ref={wrapRef} className="flex-1 min-w-0 bg-slate-800 overflow-hidden relative">
-      <ZoomControls onFit={fit} onIn={() => zoomBy(1.25)} onOut={() => zoomBy(1 / 1.25)} pct={Math.round(view.scale * 100)} />
+      <ZoomControls onFit={fit} onIn={() => zoomBy(1.25)} onOut={() => zoomBy(1 / 1.25)} pct={Math.round(view.scale * 100)}
+        labelsOn={labelsOn} onToggleLabels={() => setLabelsOn((v) => !v)} />
       <Stage
         ref={stageRef}
         width={size.w}
@@ -195,6 +210,7 @@ export default function PlanCanvas() {
                 draggable onDragMove={(e) => { e.cancelBubble = true; const np = tr.pts.map((q, qi) => (qi === vi ? { x: e.target.x(), y: e.target.y() } : q)); s.updateTracePts(tr.id, np); }} />
             )) : null;
 
+            const showChip = labelsOn || emph;
             if (tr.type === "area") {
               const c = centroid(tr.pts);
               const label = isExZone ? "EXCLUDED" : excluded ? "excluded" : `${traceQty(tr, ppf).toFixed(0)} SF`;
@@ -203,7 +219,7 @@ export default function PlanCanvas() {
                   <Group {...hp}>
                     <Line points={flatPts(tr.pts)} closed fill={hexToRgba(color, excluded ? 0.14 : emph ? 0.5 : 0.28)}
                       stroke={hot ? "#fff" : color} strokeWidth={(emph ? 3 : 2) * inv} dash={dash} />
-                    <Label x={c.x} y={c.y} color={color} inv={inv} text={label} center />
+                    {showChip && <Chip x={c.x} y={c.y} color={color} inv={inv} text={label} center />}
                   </Group>
                   {handles}
                 </Group>
@@ -216,7 +232,7 @@ export default function PlanCanvas() {
                   <Group {...hp}>
                     <Line points={flatPts(tr.pts)} stroke={hot ? "#fff" : color} strokeWidth={(emph ? 6 : 4) * inv}
                       lineCap="round" lineJoin="round" hitStrokeWidth={14 * inv} dash={dash} />
-                    <Label x={mid.x} y={mid.y} color={color} inv={inv} text={excluded ? "excluded" : `${traceQty(tr, ppf).toFixed(1)} LF`} />
+                    {showChip && <Chip x={mid.x} y={mid.y} color={color} inv={inv} text={excluded ? "excluded" : `${traceQty(tr, ppf).toFixed(1)} LF`} center />}
                   </Group>
                   {handles}
                 </Group>
@@ -224,9 +240,11 @@ export default function PlanCanvas() {
             }
             const p = tr.pts[0];
             return (
-              <Circle key={tr.id} x={p.x} y={p.y} radius={(emph ? 9 : 7) * inv} fill={color}
-                stroke="#fff" strokeWidth={(hot ? 3 : 2) * inv}
-                draggable={sel && tool === "select"} onDragMove={(e) => s.updateTracePts(tr.id, [{ x: e.target.x(), y: e.target.y() }])} {...hp} />
+              <Group key={tr.id}>
+                <Pin x={p.x} y={p.y} color={color} inv={inv} hot={emph} />
+                <HitDot x={p.x} y={p.y} inv={inv} draggable={sel && tool === "select"}
+                  onDragMove={(e) => s.updateTracePts(tr.id, [{ x: e.target.x(), y: e.target.y() }])} hp={hp} />
+              </Group>
             );
           })}
 
@@ -248,28 +266,42 @@ export default function PlanCanvas() {
             );
           })()}
 
-          {/* AI suggestions — ghost candidates. Hover to inspect, click to accept. */}
+          {/* AI suggestions — ghost candidates a human confirms before pricing.
+              Kept visually distinct from confirmed traces (dashed outline / open
+              teardrop pin) and DELIBERATELY uncluttered: colour = trade (matches
+              the legend), a small traffic-light dot = confidence, and the element
+              name only appears on hover or when Labels is on. This is how count-
+              heavy tools keep a dense sheet readable. */}
           {suggestions.map((sg) => {
             const c = sg.type === "area" ? centroid(sg.pts) : sg.pts[Math.floor(sg.pts.length / 2)] || sg.pts[0];
             const hot = isHot(sg.id);
-            const label = `AI ${Math.round((sg.confidence || 0) * 100)}%`;
+            const cc = confColor(sg.confidence);
+            const label = `${sg.element || sg.layerName || "AI"} · ${Math.round((sg.confidence || 0) * 100)}%`;
             const pinIt = (e) => { e.cancelBubble = true; setPinned({ kind: "suggestion", obj: sg, ...screenPos(e) }); };
             const hp = { onClick: pinIt, onTap: pinIt, listening: true, ...hoverProps("suggestion", sg) };
+            const showChip = hot || labelsOn;
             return (
-              <Group key={sg.id} opacity={0.95} {...hp}>
-                {sg.type === "area" && (
-                  <Line points={flatPts(sg.pts)} closed fill={hexToRgba(sg.color, hot ? 0.32 : 0.16)} stroke={hot ? "#fff" : sg.color}
-                    strokeWidth={(hot ? 3 : 2) * inv} dash={[10 * inv, 6 * inv]} />
-                )}
-                {sg.type === "linear" && (
-                  <Line points={flatPts(sg.pts)} stroke={hot ? "#fff" : sg.color} strokeWidth={(hot ? 6 : 4) * inv}
-                    dash={[10 * inv, 6 * inv]} lineCap="round" hitStrokeWidth={16 * inv} />
-                )}
-                {sg.type === "count" && (
-                  <Circle x={sg.pts[0].x} y={sg.pts[0].y} radius={(hot ? 9 : 7) * inv} fill={hexToRgba(sg.color, 0.5)}
-                    stroke={hot ? "#fff" : sg.color} strokeWidth={2 * inv} dash={[3 * inv, 3 * inv]} />
-                )}
-                <Label x={c.x} y={c.y} color={sg.color} inv={inv} text={label} center />
+              <Group key={sg.id}>
+                <Group {...hp}>
+                  {sg.type === "area" && (
+                    <Line points={flatPts(sg.pts)} closed fill={hexToRgba(sg.color, hot ? 0.32 : 0.16)} stroke={hot ? "#fff" : sg.color}
+                      strokeWidth={(hot ? 3 : 2) * inv} dash={[10 * inv, 6 * inv]} />
+                  )}
+                  {sg.type === "linear" && (
+                    <Line points={flatPts(sg.pts)} stroke={hot ? "#fff" : sg.color} strokeWidth={(hot ? 6 : 4) * inv}
+                      dash={[10 * inv, 6 * inv]} lineCap="round" hitStrokeWidth={16 * inv} />
+                  )}
+                  {sg.type === "count" ? (
+                    <>
+                      <Pin x={sg.pts[0].x} y={sg.pts[0].y} color={sg.color} inv={inv} hot={hot} ghost />
+                      <HitDot x={sg.pts[0].x} y={sg.pts[0].y} inv={inv} hp={{}} />
+                    </>
+                  ) : (
+                    // confidence badge for area/linear (pins carry their own look)
+                    <Circle x={c.x} y={c.y} radius={4.5 * inv} fill={cc} stroke="#fff" strokeWidth={1.5 * inv} />
+                  )}
+                </Group>
+                {showChip && <Chip x={c.x} y={sg.type === "count" ? c.y - 26 * inv : c.y} color={sg.color} inv={inv} text={label} center dot={cc} />}
               </Group>
             );
           })}
@@ -361,7 +393,7 @@ function UploadPrompt({ traceCount }) {
   );
 }
 
-function ZoomControls({ onFit, onIn, onOut, pct }) {
+function ZoomControls({ onFit, onIn, onOut, pct, labelsOn, onToggleLabels }) {
   return (
     <div className="absolute bottom-3 left-3 z-30 flex items-center gap-1 rounded-lg bg-slate-900/90 border border-slate-700 p-1 shadow-lg">
       <button onClick={onOut} aria-label="Zoom out" className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-700 text-slate-200 text-lg leading-none">−</button>
@@ -369,27 +401,56 @@ function ZoomControls({ onFit, onIn, onOut, pct }) {
       <button onClick={onIn} aria-label="Zoom in" className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-700 text-slate-200 text-lg leading-none">+</button>
       <div className="w-px h-5 bg-slate-700 mx-0.5" />
       <button onClick={onFit} aria-label="Fit page to screen" title="Fit to screen (F)" className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-700 text-slate-200"><Maximize size={14} /></button>
+      <button onClick={onToggleLabels} aria-label="Toggle labels" title={labelsOn ? "Hide labels — keep the sheet clean" : "Show all labels"}
+        className={`w-7 h-7 flex items-center justify-center rounded hover:bg-slate-700 ${labelsOn ? "text-brand" : "text-slate-500"}`}>
+        {labelsOn ? <Eye size={14} /> : <EyeOff size={14} />}
+      </button>
     </div>
   );
 }
 
-function Label({ x, y, text, color, inv, center }) {
-  const fontSize = 13 * inv;
-  const w = text.length * 8 * inv;
+// A solid rounded label chip — readable at any zoom, like the tool chips in
+// Bluebeam/STACK. `dot` draws a small confidence badge on the left edge.
+function Chip({ x, y, text, color, inv, center, dot }) {
+  const fs = 12 * inv;
+  const padX = 7 * inv, h = fs + 8 * inv;
+  const w = text.length * 6.7 * inv + padX * 2 + (dot ? 10 * inv : 0);
+  const bx = center ? x - w / 2 : x + 10 * inv;
+  const by = center ? y - h / 2 : y - h - 4 * inv;
+  const ink = textOn(color);
   return (
-    <Text
-      x={center ? x - w / 2 : x + 6 * inv}
-      y={center ? y - fontSize / 2 : y - 16 * inv}
-      text={text}
-      fontSize={fontSize}
-      fontStyle="bold"
-      fill={color}
-      stroke="#fff"
-      strokeWidth={3 * inv}
-      fillAfterStrokeEnabled
-      listening={false}
-    />
+    <Group listening={false}>
+      <Rect x={bx} y={by} width={w} height={h} cornerRadius={h / 2} fill={color}
+        stroke="#0f172a" strokeWidth={0.75 * inv} shadowColor="#000" shadowBlur={5 * inv} shadowOpacity={0.4} />
+      {dot && <Circle x={bx + padX + 2 * inv} y={by + h / 2} radius={3.2 * inv} fill={dot} stroke={ink} strokeWidth={0.75 * inv} />}
+      <Text x={bx + (dot ? 12 * inv : 0)} y={by} width={w - (dot ? 12 * inv : 0)} height={h}
+        align="center" verticalAlign="middle" text={text} fontSize={fs} fontStyle="bold" fill={ink} />
+    </Group>
   );
+}
+
+// A map-style teardrop pin for COUNT items (doors, windows, gates, fixtures) —
+// the convention count-heavy takeoff tools (Countfire, Bluebeam) use so each
+// item reads as a distinct dropped marker. `ghost` = an unconfirmed AI guess.
+function Pin({ x, y, color, inv, hot, ghost }) {
+  const r = (hot ? 10 : 8) * inv;
+  const cy = y - 2.4 * r; // head sits above the tip so the point marks the item
+  return (
+    <Group listening={false} opacity={ghost ? 0.9 : 1}>
+      <Line points={[x - 0.6 * r, cy + r * 0.5, x, y, x + 0.6 * r, cy + r * 0.5]} closed
+        fill={color} stroke={ghost ? color : "#fff"} strokeWidth={ghost ? 0 : 1.5 * inv} />
+      <Circle x={x} y={cy} radius={r} fill={color} stroke="#fff" strokeWidth={2 * inv}
+        dash={ghost ? [3.2 * inv, 2.4 * inv] : undefined}
+        shadowColor="#000" shadowBlur={4 * inv} shadowOpacity={0.35} />
+      <Circle x={x} y={cy} radius={r * 0.36} fill="#fff" />
+    </Group>
+  );
+}
+
+// Invisible hit target so a listening=false marker (Pin) is still hoverable /
+// clickable / draggable. Sits over the pin tip.
+function HitDot({ x, y, inv, draggable, onDragMove, hp }) {
+  return <Circle x={x} y={y} radius={22 * inv} fill="transparent" draggable={draggable} onDragMove={onDragMove} {...hp} />;
 }
 
 /* demo shell plan (~33' x 72' at 8 px/ft) drawn with Konva shapes */
