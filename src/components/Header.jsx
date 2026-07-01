@@ -53,8 +53,8 @@ export default function Header({ onExport, projectName, assistantOpen, onToggleA
       <div className="flex items-center gap-2 min-w-0">
         <span className="font-semibold tracking-tight truncate max-w-[110px] sm:max-w-[180px]">{projectName || "Demo plan"}</span>
         <span className="hidden sm:flex items-center gap-1 text-[11px] px-2 h-6 rounded bg-slate-800 text-slate-300 shrink-0">
-          <Ruler size={11} className="text-slate-500" />
-          {ppf ? <b className="text-emerald-400">{ppf.toFixed(1)} px/ft</b> : <b className="text-amber-400">not set</b>}
+          {s.scaleReading ? <Loader2 size={11} className="animate-spin text-violet-400" /> : <Ruler size={11} className="text-slate-500" />}
+          {s.scaleReading ? <span className="text-violet-300">reading scale…</span> : ppf ? <b className="text-emerald-400">{ppf.toFixed(1)} px/ft</b> : <b className="text-amber-400">not set</b>}
         </span>
         {dpi && <span className="hidden md:inline text-[11px] px-2 h-6 leading-6 rounded bg-slate-800 text-slate-400 shrink-0"><b className="text-slate-200">{dpi}</b> dpi</span>}
       </div>

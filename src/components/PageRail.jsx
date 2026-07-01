@@ -1,5 +1,6 @@
 import { useStore } from "../store/useStore.js";
 import { renderPage } from "../lib/pdf.js";
+import { maybeAutoScale } from "../lib/importPlan.js";
 import { useState, useMemo } from "react";
 import { Loader2, Search } from "lucide-react";
 
@@ -36,8 +37,10 @@ export default function PageRail() {
     setPage(i);
     if (!pages[i].loaded) {
       setLoading(i);
-      try { setPageImage(i, await renderPage(i)); } catch { /* leave blank */ }
+      try { setPageImage(i, await renderPage(i)); maybeAutoScale(); } catch { /* leave blank */ }
       finally { setLoading(null); }
+    } else {
+      maybeAutoScale();
     }
   };
 

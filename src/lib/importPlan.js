@@ -6,8 +6,28 @@
 // ---------------------------------------------------------------------------
 import { openPdf, renderPage, closePdf } from "./pdf.js";
 import { useStore } from "../store/useStore.js";
-import { hasKey } from "./aiDetect.js";
+import { hasKey, detectScale } from "./aiDetect.js";
 import { generatePlanSummary } from "./planAssistant.js";
+
+// Auto-calibrate the current page from its printed scale note × render DPI.
+// Runs only while the set is still uncalibrated, so it retries page-by-page
+// (a cover with no scale is skipped) until it finds a scale, then stops.
+export async function maybeAutoScale() {
+  const st = useStore.getState();
+  if (!hasKey() || st.ppf || st.scaleReading) return;
+  if (st.bg.type !== "img" || !st.bg.href) return;
+  const dpi = st.pages[st.activePage]?.dpi; // exact scale needs the PDF render DPI
+  if (!dpi) return;
+  st.setScaleReading(true);
+  try {
+    const { paperInchesPerFoot, scaleNote } = await detectScale({ imageDataUrl: st.bg.href, bg: st.bg });
+    if (paperInchesPerFoot > 0) useStore.getState().setPpf(dpi * paperInchesPerFoot, `AI scale ${scaleNote || ""}`.trim());
+  } catch {
+    /* silent — user can still Detect scale / Calibrate manually */
+  } finally {
+    useStore.getState().setScaleReading(false);
+  }
+}
 
 // After a plan set loads, auto-detect trades + write a project summary and open
 // the assistant to show it. Fire-and-forget; never blocks the import.
@@ -51,6 +71,7 @@ export async function importPlanFile(file, store, onError = (m) => alert(m)) {
       store.setImportProgress({ stage: "rendering", page: 0, total: thumbs.length, pct: 0 });
       store.setPageImage(0, await renderPage(0));
       runPlanAnalysis(); // auto trade-detection + summary (non-blocking)
+      maybeAutoScale(); // auto-calibrate from the scale note (non-blocking)
     } catch (err) {
       onError("Could not read that PDF: " + err.message);
     } finally {

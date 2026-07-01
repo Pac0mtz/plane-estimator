@@ -358,6 +358,8 @@ export const useStore = create(
 
       // set pixels-per-foot directly (e.g. from a scale note × page DPI)
       setPpf: (ppf, note = "AI scale") => set(() => (ppf > 0 ? { ppf, ppfNote: note, calib: [], tool: "select" } : {})),
+      scaleReading: false, // auto-scale in progress (header indicator)
+      setScaleReading: (scaleReading) => set({ scaleReading }),
 
       // set scale from two plan-coord points a known distance apart (AI scale)
       setScaleFromPoints: (a, b, feet, note = "AI scale") =>

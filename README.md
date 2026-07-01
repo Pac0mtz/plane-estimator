@@ -70,7 +70,8 @@ Or connect the repo in the Vercel dashboard — no config needed.
 - **Detect scale** — reads the printed **scale note** (e.g. `1/4"=1'-0"`) as text and, for PDF
   pages, multiplies it by the page's known render DPI to get an **exact** pixels-per-foot (no
   eyeballing the bar). Falls back to a printed dimension line, then the scale bar. `detectScale`
-  in `src/lib/aiDetect.js`.
+  in `src/lib/aiDetect.js`. **Runs automatically on import** — retries page-by-page (skipping a
+  cover with no scale) until it finds one, then stops; the header shows a "reading scale…" pill.
 - **Auto-layers** — detect creates a **new trade layer per element type** it finds (each with its
   own color), so walls, slab, storefront, doors, etc. land on distinct, differently-colored layers.
 - **Layer details / properties panel** — the active layer's editable properties (name, color
