@@ -4,7 +4,7 @@ import { useStore } from "../store/useStore.js";
 import { ASSEMBLIES } from "../lib/assemblies.js";
 
 // trades offered when scoping a new project (assembly keys from the price book)
-const TRADE_OPTIONS = ["slab", "footing", "brick", "cmu", "eifs", "roofing", "drywall", "storefront", "doors", "act", "paint", "flooring", "lighting", "device", "fixtures", "rtu"];
+const TRADE_OPTIONS = ["slab", "footing", "brick", "cmu", "eifs", "roofing", "drywall", "storefront", "doors", "woodfence", "chainlink", "fencegate", "sitewall", "act", "paint", "flooring", "lighting", "device", "fixtures", "rtu"];
 const DEFAULT_TRADES = ["brick", "eifs", "drywall", "slab", "doors"];
 
 const STATUSES = ["active", "bidding", "won", "archived"];

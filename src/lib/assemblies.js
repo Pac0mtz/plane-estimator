@@ -136,6 +136,34 @@ export const ASSEMBLIES = {
     ],
   },
 
+  // --- Div 32 Exterior Improvements (fencing, site walls) -------------------
+  woodfence: {
+    name: "Wood Privacy Fence 6'", unit: "LF", geom: "linear", div: "32 Exterior Improvements",
+    materials: [
+      m("Cedar pickets + rails", 1, 0.08, "LF", 14, 0, 0),
+      m("4x4 posts + concrete", 0.13, 0.05, "post", 22, 0, 0), // ~1 post / 8 LF
+      m("Set posts + hang panels (labor)", 1, 0, "LF", 0, 16, 0),
+    ],
+  },
+  chainlink: {
+    name: "Chain-link Fence 6'", unit: "LF", geom: "linear", div: "32 Exterior Improvements",
+    materials: [
+      m("Mesh + top rail + posts", 1, 0.05, "LF", 8.5, 0, 0),
+      m("Set posts + stretch (labor)", 1, 0, "LF", 0, 7.5, 0),
+    ],
+  },
+  fencegate: {
+    name: "Fence Gate + Hardware", unit: "EA", geom: "count", div: "32 Exterior Improvements",
+    materials: [m("Gate frame + hardware + hang", 1, 0, "ea", 190, 140, 0)],
+  },
+  sitewall: {
+    name: "Site / Retaining Wall (CMU)", unit: "LF", geom: "linear", div: "32 Exterior Improvements",
+    materials: [
+      m("Footing + CMU + cap", 1, 0.05, "LF", 34, 42, 3),
+      m("Reinf + grout + waterproof", 1, 0.05, "LF", 9, 6, 0),
+    ],
+  },
+
   // --- Div 26 Electrical ----------------------------------------------------
   lighting: {
     name: "Light Fixture (LED)", unit: "EA", geom: "count", div: "26 Electrical",

@@ -526,11 +526,11 @@ export const useStore = create(
     }),
     {
       name: "plan-forge-v1",
-      version: 2,
-      // v2 reworked the price book into a full material+labor+equipment model;
-      // refresh any older cached book while keeping projects/clients.
+      version: 3,
+      // refresh a cached book when the built-in catalog changes (v2 added the
+      // labor/equipment model; v3 added Div 32 fencing) while keeping projects.
       migrate: (state, ver) => {
-        if (ver < 2) {
+        if (ver < 3) {
           state.priceBook = clonePriceBook();
           state.bookMeta = { ...DEFAULT_BOOK_META };
         }

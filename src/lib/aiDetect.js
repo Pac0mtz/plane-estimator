@@ -79,6 +79,10 @@ Detect and classify EACH element. Map it to one of these assembly keys (asm) —
 - storefront -> aluminum storefront / glazing runs (type "linear" or area). element "Storefront".
 - slab -> floor/slab footprint (type "area", polygon of the interior). element "Slab on grade".
 - roofing -> roof area (type "area"). element "Roof".
+- woodfence -> wood / privacy fence runs (type "linear" along the fence). element "Wood privacy fence".
+- chainlink -> chain-link fence runs (type "linear"). element "Chain-link fence".
+- fencegate -> each gate (type "count", one point per gate). element "Gate".
+- sitewall -> site / retaining / screen walls outside the building (type "linear"). element "Site wall".
 
 Return { "detections": [ { "asm": "...", "type": "area|linear|count", "element": "short human label", "points": [[x,y],...], "confidence": 0..1, "note": "why / what you see" } ] }.
 Coordinates are NORMALIZED 0..1 (x = fraction of width, y = fraction of height). area polygon needs >=3 points; linear polyline >=2 points; count = one point per item.
