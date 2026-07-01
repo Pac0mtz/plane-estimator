@@ -129,7 +129,10 @@ async function openaiDetect({ imageDataUrl, bg, key }) {
   return (parsed.detections || [])
     .map((d) => {
       if (!d.asm || !Array.isArray(d.points)) return null;
-      const pts = d.points.map(([x, y]) => ({ x: x * W, y: y * H }));
+      // clamp normalized coords to the sheet so a stray >1 / <0 value can't
+      // shoot a line off the page
+      const cl = (v) => Math.max(0, Math.min(1, Number(v) || 0));
+      const pts = d.points.map(([x, y]) => ({ x: cl(x) * W, y: cl(y) * H }));
       const type = ["area", "linear", "count"].includes(d.type) ? d.type : "count";
       if (type === "area" && pts.length < 3) return null;
       if (type === "linear" && pts.length < 2) return null;
