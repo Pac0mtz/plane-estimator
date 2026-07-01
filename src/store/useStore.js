@@ -356,6 +356,9 @@ export const useStore = create(
           return { ppf: Math.hypot(dx, dy) / feet, ppfNote: "calibrated", calib: [], tool: "select" };
         }),
 
+      // set pixels-per-foot directly (e.g. from a scale note × page DPI)
+      setPpf: (ppf, note = "AI scale") => set(() => (ppf > 0 ? { ppf, ppfNote: note, calib: [], tool: "select" } : {})),
+
       // set scale from two plan-coord points a known distance apart (AI scale)
       setScaleFromPoints: (a, b, feet, note = "AI scale") =>
         set(() => {

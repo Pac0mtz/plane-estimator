@@ -67,8 +67,10 @@ Or connect the repo in the Vercel dashboard — no config needed.
   **walls** (linear/LF), and **areas** (slab/SF), each with an element label, confidence, and a
   note on what it saw. Accept/reject in the review panel; accepted ones price out. Demo-detection
   with no key; paste an OpenAI key for real `gpt-4o` vision. See `src/lib/aiDetect.js`.
-- **Detect scale** — reads the drawing's scale bar / note and auto-calibrates pixels-per-foot
-  (`detectScale` in `src/lib/aiDetect.js`), so you don't have to click two points by hand.
+- **Detect scale** — reads the printed **scale note** (e.g. `1/4"=1'-0"`) as text and, for PDF
+  pages, multiplies it by the page's known render DPI to get an **exact** pixels-per-foot (no
+  eyeballing the bar). Falls back to a printed dimension line, then the scale bar. `detectScale`
+  in `src/lib/aiDetect.js`.
 - **Auto-layers** — detect creates a **new trade layer per element type** it finds (each with its
   own color), so walls, slab, storefront, doors, etc. land on distinct, differently-colored layers.
 - **Layer details / properties panel** — the active layer's editable properties (name, color

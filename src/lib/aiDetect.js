@@ -134,13 +134,17 @@ async function openaiDetect({ imageDataUrl, bg, key }) {
 }
 
 // --- AI scale detection ------------------------------------------------------
-// Reads the drawing's graphic scale bar or scale note and returns two points a
-// known distance apart, so we can auto-calibrate pixels-per-foot.
+// Prefer READING the printed scale note (text — reliable), e.g. 1/4"=1'-0".
+// Combined with the page's render DPI that gives an EXACT pixels-per-foot with
+// no eyeballing. Falls back to a printed dimension line, then a scale bar.
 export async function detectScale({ imageDataUrl, bg }) {
   const key = getKey();
   if (!key) throw new Error("Add an OpenAI key to auto-detect scale.");
   const url = await asDataUrl(imageDataUrl);
-  const sys = `You read the SCALE off a construction drawing. Find the graphic scale bar (or a dimension line with a labeled length, or a "SCALE: 1/4\\"=1'-0\\"" note you can measure against a visible feature). Return STRICT JSON: { "a":[x,y], "b":[x,y], "feet": <number>, "source": "scale bar|dimension|note", "confidence":0..1 }. a and b are the two ENDPOINTS (normalized 0..1) of a segment on the image whose real length is "feet". If you cannot find a reliable scale, return { "feet": 0 }.`;
+  const sys = `You read the SCALE of a construction drawing. Do these in order:
+1. Find the printed SCALE NOTE (e.g. "SCALE: 1/4\\"=1'-0\\"", "3/16\\"=1'-0\\"", "1:48", "1/8\\"=1'-0\\""). Convert it to paperInchesPerFoot = inches on the PAPER that equal one real foot. Examples: 1/4"=1'-0" -> 0.25; 3/16"=1'-0" -> 0.1875; 1/8"=1'-0" -> 0.125; 1:48 -> 12/48 = 0.25; 1:96 -> 0.125. Put the exact note text in scaleNote.
+2. ALSO, if you can, find one printed DIMENSION LINE: its two endpoints and the labeled real length in feet.
+Return STRICT JSON: { "paperInchesPerFoot": <number or 0>, "scaleNote": "<text or empty>", "a":[x,y], "b":[x,y], "feet": <number or 0>, "confidence":0..1 }. a and b are normalized 0..1 endpoints. If nothing legible, return zeros.`;
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
@@ -150,19 +154,19 @@ export async function detectScale({ imageDataUrl, bg }) {
       temperature: 0,
       messages: [
         { role: "system", content: sys },
-        { role: "user", content: [{ type: "text", text: "Find the scale. JSON only." }, { type: "image_url", image_url: { url } }] },
+        { role: "user", content: [{ type: "text", text: "Read the scale. JSON only." }, { type: "image_url", image_url: { url } }] },
       ],
     }),
   });
   if (!res.ok) throw new Error(`OpenAI ${res.status}`);
-  const parsed = JSON.parse((await res.json()).choices?.[0]?.message?.content || "{}");
-  if (!(parsed.feet > 0) || !Array.isArray(parsed.a) || !Array.isArray(parsed.b)) throw new Error("No reliable scale found on this sheet — calibrate manually.");
+  const p = JSON.parse((await res.json()).choices?.[0]?.message?.content || "{}");
   return {
-    a: { x: parsed.a[0] * bg.w, y: parsed.a[1] * bg.h },
-    b: { x: parsed.b[0] * bg.w, y: parsed.b[1] * bg.h },
-    feet: parsed.feet,
-    source: parsed.source || "scale",
-    confidence: parsed.confidence ?? 0.5,
+    paperInchesPerFoot: p.paperInchesPerFoot > 0 ? p.paperInchesPerFoot : 0,
+    scaleNote: p.scaleNote || "",
+    a: Array.isArray(p.a) ? { x: p.a[0] * bg.w, y: p.a[1] * bg.h } : null,
+    b: Array.isArray(p.b) ? { x: p.b[0] * bg.w, y: p.b[1] * bg.h } : null,
+    feet: p.feet > 0 ? p.feet : 0,
+    confidence: p.confidence ?? 0.5,
   };
 }
 

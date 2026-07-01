@@ -28,8 +28,18 @@ export default function Toolbar() {
     if (s.bg.type !== "img" || !s.bg.href) return alert("Open an uploaded plan page first — the demo has a fixed scale.");
     setScaleBusy(true);
     try {
-      const { a, b, feet, source } = await detectScale({ imageDataUrl: s.bg.href, bg: s.bg });
-      s.setScaleFromPoints(a, b, feet, `AI scale (${source})`);
+      const { paperInchesPerFoot, scaleNote, a, b, feet } = await detectScale({ imageDataUrl: s.bg.href, bg: s.bg });
+      const dpi = s.pages[s.activePage]?.dpi; // pixels per paper inch (PDF pages only)
+      if (paperInchesPerFoot > 0 && dpi) {
+        // exact: 1 foot = paperInchesPerFoot paper inches = that × dpi pixels
+        s.setPpf(dpi * paperInchesPerFoot, `AI scale ${scaleNote || ""}`.trim());
+      } else if (a && b && feet > 0) {
+        s.setScaleFromPoints(a, b, feet, "AI dimension");
+      } else if (paperInchesPerFoot > 0) {
+        alert(`Read scale note "${scaleNote}", but this is an image (unknown DPI) so I can't compute pixels-per-foot from it. Calibrate two points, or import the PDF instead.`);
+      } else {
+        alert("No reliable scale found on this sheet — use Calibrate.");
+      }
     } catch (err) {
       alert(err.message);
     } finally {
