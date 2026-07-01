@@ -1,14 +1,18 @@
-import { Eye, EyeOff, Layers } from "lucide-react";
+import { Eye, EyeOff, Layers, Plus, Sparkles } from "lucide-react";
 import { useStore } from "../store/useStore.js";
 
 const money = (n) => "$" + Math.round(n).toLocaleString();
 
 export default function LayersPanel({ rollup }) {
-  const { activeId, setActive, toggleLayer } = useStore();
+  const { activeId, setActive, toggleLayer, addLayer } = useStore();
   return (
     <div className="p-3">
       <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 mb-2">
         <Layers size={14} /> TRADE LAYERS
+        <button onClick={() => addLayer()} title="New layer" aria-label="New layer"
+          className="ml-auto flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">
+          <Plus size={12} /> New
+        </button>
       </div>
       <div className="flex flex-col gap-1">
         {rollup.map((r) => (
@@ -22,6 +26,7 @@ export default function LayersPanel({ rollup }) {
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-sm shrink-0" style={{ background: r.layer.color }} />
               <span className="text-sm font-medium flex-1 truncate">{r.layer.name}</span>
+              {r.layer.auto && <span title="Created by AI detect"><Sparkles size={11} className="text-violet-400 shrink-0" /></span>}
               <button onClick={(e) => { e.stopPropagation(); toggleLayer(r.layer.id); }}
                 aria-label={r.layer.visible ? `Hide ${r.layer.name}` : `Show ${r.layer.name}`}
                 className="text-slate-400 hover:text-white">

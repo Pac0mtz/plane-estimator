@@ -40,7 +40,8 @@ export default function Header({ onExport, projectName, assistantOpen, onToggleA
   const runDetect = async () => {
     s.setAiBusy(true);
     try {
-      s.setSuggestions(await detectTakeoff({ imageDataUrl: s.bg.href, bg: s.bg, layers: s.layers }));
+      const dets = await detectTakeoff({ imageDataUrl: s.bg.href, bg: s.bg });
+      s.ingestDetections(dets);
     } catch (err) {
       s.setAiError(err.message);
     }

@@ -69,6 +69,10 @@ Or connect the repo in the Vercel dashboard — no config needed.
   with no key; paste an OpenAI key for real `gpt-4o` vision. See `src/lib/aiDetect.js`.
 - **Detect scale** — reads the drawing's scale bar / note and auto-calibrates pixels-per-foot
   (`detectScale` in `src/lib/aiDetect.js`), so you don't have to click two points by hand.
+- **Auto-layers** — detect creates a **new trade layer per element type** it finds (each with its
+  own color), so walls, slab, storefront, doors, etc. land on distinct, differently-colored layers.
+- **Layer details / properties panel** — the active layer's editable properties (name, color
+  swatches, assembly, live quantity + cost) plus New-layer and Delete-layer controls.
 - **Hover to inspect & confirm** — hover any detection or trace to highlight it and see a
   properties card (element, type, quantity, confidence, layer, note). **Accept**, **delete**, or
   **Review** — which asks the AI to double-check the classification and note a local unit cost.

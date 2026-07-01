@@ -45,58 +45,40 @@ function suggestion(layer, type, pts, confidence, note) {
 }
 
 // --- MOCK detector -----------------------------------------------------------
-// Produces plausible candidates positioned relative to the page dimensions so
-// it works on the demo shell OR any uploaded page. Deterministic.
-function mockDetect({ bg, layers }) {
-  // Anchor to the demo shell (drawn at x0=250,y0=40,w=264,h=576 in an 820x680
-  // plan) so demo detections land ON the building. For real uploads we don't
-  // know the geometry, so place candidates as fractions of the page.
+// Returns raw detections (asm + geometry). The store maps each to a layer,
+// creating one with its own colour when the assembly has no layer yet. Includes
+// several wall types so they land on distinct, differently-coloured layers.
+function mockDetect({ bg }) {
   const demo = bg.type === "demo";
   const box = demo
     ? { x: 250, y: 40, w: 264, h: 576 }
     : { x: 0.31 * bg.w, y: 0.07 * bg.h, w: 0.32 * bg.w, h: 0.83 * bg.h };
   const X = (f) => Math.round(box.x + f * box.w);
   const Y = (f) => Math.round(box.y + f * box.h);
-  const out = [];
-
-  const slab = layerForAsm(layers, "slab");
-  if (slab)
-    out.push(
-      suggestion(slab, "area",
-        [
-          { x: X(0.03), y: Y(0.02) },
-          { x: X(0.97), y: Y(0.02) },
-          { x: X(0.97), y: Y(0.98) },
-          { x: X(0.03), y: Y(0.98) },
-        ],
-        0.82, "Building footprint (slab)")
-    );
-
-  const brick = layerForAsm(layers, "brick");
-  if (brick)
-    out.push(suggestion(brick, "linear", [{ x: X(0), y: Y(0) }, { x: X(1), y: Y(0) }], 0.61, "Front elevation brick band"));
-
-  const dry = layerForAsm(layers, "drywall");
-  if (dry)
-    out.push(suggestion(dry, "linear", [{ x: X(0), y: Y(0.74) }, { x: X(1), y: Y(0.74) }], 0.74, "Interior partition wall"));
-
-  const doors = layerForAsm(layers, "doors");
-  if (doors) {
-    out.push(suggestion(doors, "count", [{ x: X(0.5), y: Y(0.99) }], 0.9, "Entry door"));
-    out.push(suggestion(doors, "count", [{ x: X(0.75), y: Y(0.86) }], 0.68, "Storage door"));
-  }
-  return out;
+  const det = (asm, type, pts, confidence, element) => ({ asm, type, pts, confidence, element, note: element });
+  return [
+    det("slab", "area", [{ x: X(0.03), y: Y(0.02) }, { x: X(0.97), y: Y(0.02) }, { x: X(0.97), y: Y(0.98) }, { x: X(0.03), y: Y(0.98) }], 0.82, "Slab-on-grade footprint"),
+    det("brick", "linear", [{ x: X(0), y: Y(0) }, { x: X(1), y: Y(0) }], 0.64, "Exterior wall — brick veneer"),
+    det("eifs", "linear", [{ x: X(1), y: Y(0) }, { x: X(1), y: Y(1) }], 0.6, "Exterior wall — EIFS"),
+    det("drywall", "linear", [{ x: X(0), y: Y(0.74) }, { x: X(1), y: Y(0.74) }], 0.74, "Interior partition wall"),
+    det("storefront", "linear", [{ x: X(0), y: Y(1) }, { x: X(0.55), y: Y(1) }], 0.57, "Storefront glazing"),
+    det("doors", "count", [{ x: X(0.5), y: Y(0.99) }], 0.9, "Entry door"),
+    det("doors", "count", [{ x: X(0.75), y: Y(0.86) }], 0.68, "Storage door"),
+  ];
 }
 
 // --- OpenAI detector (real; runs only when a key is present) -----------------
 const SYSTEM = `You are a construction estimator's takeoff assistant. Look at this floor plan / elevation and detect the physical elements an estimator quantifies. Return STRICT JSON only.
 
-Detect and classify EACH element into one of these trades (asm):
-- doors  -> every door leaf (type "count", one point at each door). element e.g. "Entry door", "HM door".
-- drywall -> interior partition walls (type "linear", a polyline tracing the wall centerline -> yields linear feet). element e.g. "Interior partition".
-- brick  -> thin-brick / masonry veneer wall runs on elevations (type "linear"). element "Brick veneer".
-- eifs   -> EIFS wall areas or runs (linear or area). element "EIFS".
-- slab   -> the floor/slab footprint (type "area", polygon around the building interior -> yields SF). element "Slab on grade".
+Detect and classify EACH element. Map it to one of these assembly keys (asm) — walls go to the material they're built of, so different wall types land on different layers:
+- doors -> each door leaf (type "count", one point per door). element e.g. "Entry door".
+- drywall -> interior partition walls (type "linear", polyline along the wall). element "Interior partition".
+- brick -> thin-brick/masonry veneer wall runs (type "linear"). element "Exterior wall — brick".
+- cmu -> concrete masonry unit walls (type "linear"). element "CMU wall".
+- eifs -> EIFS wall runs/areas (linear or area). element "Exterior wall — EIFS".
+- storefront -> aluminum storefront / glazing runs (type "linear" or area). element "Storefront".
+- slab -> floor/slab footprint (type "area", polygon of the interior). element "Slab on grade".
+- roofing -> roof area (type "area"). element "Roof".
 
 Return { "detections": [ { "asm": "...", "type": "area|linear|count", "element": "short human label", "points": [[x,y],...], "confidence": 0..1, "note": "why / what you see" } ] }.
 Coordinates are NORMALIZED 0..1 (x = fraction of width, y = fraction of height). area polygon needs >=3 points; linear polyline >=2 points; count = one point per item.
@@ -115,7 +97,7 @@ async function asDataUrl(url) {
   });
 }
 
-async function openaiDetect({ imageDataUrl, bg, layers, key }) {
+async function openaiDetect({ imageDataUrl, bg, key }) {
   imageDataUrl = await asDataUrl(imageDataUrl);
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -141,13 +123,12 @@ async function openaiDetect({ imageDataUrl, bg, layers, key }) {
   const W = bg.w, H = bg.h;
   return (parsed.detections || [])
     .map((d) => {
-      const layer = layerForAsm(layers, d.asm);
-      if (!layer || !Array.isArray(d.points)) return null;
+      if (!d.asm || !Array.isArray(d.points)) return null;
       const pts = d.points.map(([x, y]) => ({ x: x * W, y: y * H }));
       const type = ["area", "linear", "count"].includes(d.type) ? d.type : "count";
       if (type === "area" && pts.length < 3) return null;
       if (type === "linear" && pts.length < 2) return null;
-      return suggestion(layer, type, type === "count" ? [pts[0]] : pts, d.confidence ?? 0.5, d.note || "", d.element || d.note || layer.name);
+      return { asm: d.asm, type, pts: type === "count" ? [pts[0]] : pts, confidence: d.confidence ?? 0.5, note: d.note || "", element: d.element || d.note || d.asm };
     })
     .filter(Boolean);
 }
@@ -185,11 +166,18 @@ export async function detectScale({ imageDataUrl, bg }) {
   };
 }
 
-// Public entry point.
-export async function detectTakeoff({ imageDataUrl, bg, layers }) {
+// Public entry point — returns raw detections; the store maps them to layers.
+//
+// The MOCK detector is plan-agnostic (fixed positions), so it must ONLY run on
+// the built-in demo plan. On a real uploaded plan we require a real key —
+// otherwise every plan would show the same placeholder boxes ("same areas on a
+// different plan"). No key on a real plan => a clear error, not fake data.
+export async function detectTakeoff({ imageDataUrl, bg }) {
   const key = getKey();
-  if (key && imageDataUrl) return openaiDetect({ imageDataUrl, bg, layers, key });
-  // demo mode: brief delay so the UI shows its working state
-  await new Promise((r) => setTimeout(r, 500));
-  return mockDetect({ bg, layers });
+  if (key && imageDataUrl) return openaiDetect({ imageDataUrl, bg, key });
+  if (bg.type === "demo") {
+    await new Promise((r) => setTimeout(r, 500)); // let the UI show its working state
+    return mockDetect({ bg });
+  }
+  throw new Error("Add an OpenAI key (AI panel → key icon) to detect on a real plan. The demo detections only run on the built-in demo.");
 }

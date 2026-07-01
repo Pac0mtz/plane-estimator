@@ -61,7 +61,7 @@ export default function PlanCanvas() {
     if (tool === "pan") return;
     // in select mode, empty-space click clears selection
     if (tool === "select") {
-      if (e.target === e.target.getStage()) s.setSel(null);
+      if (e.target === e.target.getStage()) { s.setSel(null); setPinned(null); }
       return;
     }
     const p = stageRef.current.getRelativePointerPosition();
@@ -94,7 +94,8 @@ export default function PlanCanvas() {
   };
 
   // ---- hover inspect + search-to-locate ----
-  const [hovered, setHovered] = useState(null); // { kind, obj, sx, sy }
+  const [hovered, setHovered] = useState(null); // { kind, obj, sx, sy } transient
+  const [pinned, setPinned] = useState(null); // clicked item — persistent card
   const [flash, setFlash] = useState(null); // plan-coord point pulsed after a search hit
   const hoverTimer = useRef();
   const screenPos = (e) => {
@@ -163,7 +164,7 @@ export default function PlanCanvas() {
             const sel = tr.id === selId;
             const hot = isHot(tr.id);
             const emph = sel || hot;
-            const pick = (e) => { if (tool === "select") { e.cancelBubble = true; s.setSel(tr.id); } };
+            const pick = (e) => { if (tool === "select") { e.cancelBubble = true; s.setSel(tr.id); setPinned({ kind: "trace", obj: tr, ...screenPos(e) }); } };
             const hp = { onClick: pick, onTap: pick, listening: true, ...hoverProps("trace", tr) };
 
             if (tr.type === "area") {
@@ -212,7 +213,8 @@ export default function PlanCanvas() {
             const c = sg.type === "area" ? centroid(sg.pts) : sg.pts[Math.floor(sg.pts.length / 2)] || sg.pts[0];
             const hot = isHot(sg.id);
             const label = `AI ${Math.round((sg.confidence || 0) * 100)}%`;
-            const hp = { onClick: (e) => { e.cancelBubble = true; s.acceptSuggestion(sg.id); }, onTap: (e) => { e.cancelBubble = true; s.acceptSuggestion(sg.id); }, listening: true, ...hoverProps("suggestion", sg) };
+            const pinIt = (e) => { e.cancelBubble = true; setPinned({ kind: "suggestion", obj: sg, ...screenPos(e) }); };
+            const hp = { onClick: pinIt, onTap: pinIt, listening: true, ...hoverProps("suggestion", sg) };
             return (
               <Group key={sg.id} opacity={0.95} {...hp}>
                 {sg.type === "area" && (
@@ -273,18 +275,25 @@ export default function PlanCanvas() {
 
       <CanvasSearch traces={pageTraces} suggestions={suggestions} layerName={layerName} qtyText={qtyText} onLocate={locate} />
 
-      {hovered && (
-        <HoverCard
-          kind={hovered.kind} obj={hovered.obj} sx={hovered.sx} sy={hovered.sy} wrapW={size.w}
-          layerName={hovered.kind === "trace" ? layerName(hovered.obj.layer) : hovered.obj.layerName}
-          qty={qtyText(hovered.obj)}
-          onKeep={() => clearTimeout(hoverTimer.current)}
-          onDismiss={() => setHovered(null)}
-          onAccept={hovered.kind === "suggestion" ? () => { s.acceptSuggestion(hovered.obj.id); setHovered(null); } : null}
-          onDelete={hovered.kind === "trace" ? () => { s.setSel(hovered.obj.id); s.deleteSel(); setHovered(null); } : null}
-          onConfirm={() => confirmDetection(hovered.kind === "suggestion" ? hovered.obj.element : layerName(hovered.obj.layer), hovered.kind === "suggestion" ? hovered.obj.layerName : layerName(hovered.obj.layer), qtyText(hovered.obj))}
-        />
-      )}
+      {(() => {
+        const card = pinned || hovered;
+        if (!card) return null;
+        const isPinned = !!pinned;
+        const clear = () => { setPinned(null); setHovered(null); };
+        return (
+          <HoverCard
+            kind={card.kind} obj={card.obj} sx={card.sx} sy={card.sy} wrapW={size.w} wrapH={size.h} pinned={isPinned}
+            layerName={card.kind === "trace" ? layerName(card.obj.layer) : card.obj.layerName}
+            qty={qtyText(card.obj)}
+            onKeep={() => clearTimeout(hoverTimer.current)}
+            onDismiss={() => setHovered(null)}
+            onClose={clear}
+            onAccept={card.kind === "suggestion" ? () => { s.acceptSuggestion(card.obj.id); clear(); } : null}
+            onDelete={card.kind === "trace" ? () => { s.setSel(card.obj.id); s.deleteSel(); clear(); } : null}
+            onConfirm={() => confirmDetection(card.kind === "suggestion" ? card.obj.element : layerName(card.obj.layer), card.kind === "suggestion" ? card.obj.layerName : layerName(card.obj.layer), qtyText(card.obj))}
+          />
+        );
+      })()}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import PlanCanvas from "./PlanCanvas.jsx";
 import PageRail from "./PageRail.jsx";
 import DropZone from "./DropZone.jsx";
 import LayersPanel from "./LayersPanel.jsx";
+import LayerDetails from "./LayerDetails.jsx";
 import MaterialsPanel from "./MaterialsPanel.jsx";
 import AiReviewPanel from "./AiReviewPanel.jsx";
 import AssistantPanel from "./AssistantPanel.jsx";
@@ -66,6 +67,7 @@ export default function TakeoffView() {
             </button>
             <AiReviewPanel />
             <LayersPanel rollup={rollup} />
+            <LayerDetails rollup={rollup} />
             <MaterialsPanel rollup={rollup} grand={grand} />
           </div>
         ) : (

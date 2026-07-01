@@ -127,10 +127,11 @@ export async function openPdf(file, { thumbDim = 160, onProgress } = {}) {
 
   // build the sheet index off the cover pages, then label every page
   const index = parseSheetIndex(texts.slice(0, 4).join(" \n "));
-  thumbs.forEach((t, i) => {
-    const det = detectSheet(t.text, index) || (guessSheetNo(t.text) ? { no: guessSheetNo(t.text), title: "" } : null);
+  thumbs.forEach((t) => {
+    let det = detectSheet(t.text, index);
+    if (!det) { const g = guessSheetNo(t.text, index); if (g) det = { no: g, title: index.get(g) || "" }; }
     t.sheetNo = det?.no || null;
-    t.title = det?.title || (index.get(det?.no) ?? "");
+    t.title = det?.title || (det?.no ? index.get(det.no) : "") || "";
     t.discipline = disciplineOf(t.sheetNo);
   });
   const sheetIndex = [...index].map(([no, title]) => ({ no, title, discipline: disciplineOf(no) }));

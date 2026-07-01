@@ -9,6 +9,12 @@ const now = () => new Date().toISOString();
 export const DEMO = { w: 820, h: 680, ppf: 8 };
 const DEMO_PAGE = { type: "demo", w: DEMO.w, h: DEMO.h, thumb: null, loaded: true };
 
+// distinct colors auto-assigned to new layers (walls/areas each get their own)
+export const PALETTE = [
+  "#e0533d", "#3d7fe0", "#2fae6a", "#e0a63d", "#9b6ee0", "#22d3ee",
+  "#f472b6", "#a3e635", "#fb923c", "#38bdf8", "#c084fc", "#f87171", "#34d399", "#facc15",
+];
+
 const START_LAYERS = [
   { id: "l1", name: "Thin Brick", color: "#e0533d", asm: "brick", visible: true },
   { id: "l2", name: "EIFS", color: "#3d7fe0", asm: "eifs", visible: true },
@@ -272,6 +278,56 @@ export const useStore = create(
 
       toggleLayer: (id) =>
         set((s) => ({ layers: s.layers.map((l) => (l.id === id ? { ...l, visible: !l.visible } : l)) })),
+
+      // ---- layer CRUD ----
+      nextColor: () => {
+        const used = new Set(get().layers.map((l) => l.color));
+        return PALETTE.find((c) => !used.has(c)) || PALETTE[get().layers.length % PALETTE.length];
+      },
+      addLayer: (data = {}) => {
+        const id = "l" + uid();
+        const asm = data.asm || "slab";
+        const def = get().priceBook[asm] || ASSEMBLIES[asm];
+        const layer = { id, name: data.name || def?.name || "New layer", color: data.color || get().nextColor(), asm, visible: true };
+        set((s) => ({ layers: [...s.layers, layer], activeId: id }));
+        return id;
+      },
+      updateLayer: (id, patch) =>
+        set((s) => ({ layers: s.layers.map((l) => (l.id === id ? { ...l, ...patch } : l)) })),
+      removeLayer: (id) =>
+        set((s) => {
+          const layers = s.layers.filter((l) => l.id !== id);
+          return {
+            layers,
+            traces: s.traces.filter((t) => t.layer !== id),
+            activeId: s.activeId === id ? layers[0]?.id || null : s.activeId,
+          };
+        }),
+
+      // AI detect -> ensure a layer per detected assembly (create if missing),
+      // then build the suggestions that reference those layers.
+      ingestDetections: (dets) =>
+        set((s) => {
+          const layers = [...s.layers];
+          const used = new Set(layers.map((l) => l.color));
+          const suggestions = [];
+          for (const d of dets) {
+            const def = s.priceBook[d.asm] || ASSEMBLIES[d.asm];
+            if (!def) continue;
+            let layer = layers.find((l) => l.asm === d.asm);
+            if (!layer) {
+              const color = PALETTE.find((c) => !used.has(c)) || PALETTE[layers.length % PALETTE.length];
+              used.add(color);
+              layer = { id: "l" + uid(), name: def.name, color, asm: d.asm, visible: true, auto: true };
+              layers.push(layer);
+            }
+            suggestions.push({
+              id: uid(), layerId: layer.id, layerName: layer.name, color: layer.color, asm: d.asm,
+              type: d.type, pts: d.pts, confidence: d.confidence, note: d.note, element: d.element || d.note,
+            });
+          }
+          return { layers, suggestions, aiBusy: false, aiError: null };
+        }),
 
       setScaleFromCalib: (feet) =>
         set((s) => {
