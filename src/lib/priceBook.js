@@ -11,9 +11,9 @@ export function exportPriceBookJson(priceBook) {
 }
 
 export function exportPriceBookCsv(priceBook) {
-  const rows = [["assembly_key", "assembly", "geom", "unit", "material", "per", "waste_pct", "unit_cost", "material_unit"]];
+  const rows = [["division", "assembly_key", "assembly", "geom", "unit", "material", "per", "waste_pct", "material_cost", "labor_cost", "equip_cost", "material_unit"]];
   for (const [key, a] of Object.entries(priceBook)) {
-    a.materials.forEach((m) => rows.push([key, a.name, a.geom, a.unit, m.name, m.per, Math.round(m.waste * 100), m.cost, m.u]));
+    a.materials.forEach((m) => rows.push([a.div || "", key, a.name, a.geom, a.unit, m.name, m.per, Math.round((m.waste || 0) * 100), m.cost, m.labor || 0, m.equip || 0, m.u]));
   }
   const csv = rows.map((r) => r.map((c) => (/[",\n]/.test(String(c)) ? `"${String(c).replace(/"/g, '""')}"` : c)).join(",")).join("\n");
   download("planforge-pricebook.csv", csv, "text/csv");

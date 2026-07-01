@@ -15,7 +15,7 @@ import { ASSEMBLIES, explode } from "../lib/assemblies.js";
 import { traceQty } from "../lib/geometry.js";
 
 export default function TakeoffView() {
-  const { layers, traces, ppf, priceBook } = useStore();
+  const { layers, traces, ppf, priceBook, bookMeta } = useStore();
   const active = useStore((s) => s.activeProject());
   const [exportOpen, setExportOpen] = useState(false);
   const assistantOpen = useStore((s) => s.assistantOpen);
@@ -28,10 +28,10 @@ export default function TakeoffView() {
       const tl = traces.filter((t) => t.layer === l.id);
       const qty = tl.reduce((s, t) => s + traceQty(t, ppf), 0);
       const asm = priceBook[l.asm] || ASSEMBLIES[l.asm];
-      const { materials, cost } = explode(l.asm, qty, priceBook);
-      return { layer: l, asm, count: tl.length, qty, materials, cost };
+      const { materials, cost, bare } = explode(l.asm, qty, priceBook, bookMeta);
+      return { layer: l, asm, count: tl.length, qty, materials, cost, bare };
     });
-  }, [layers, traces, ppf, priceBook]);
+  }, [layers, traces, ppf, priceBook, bookMeta]);
 
   const grand = rollup.reduce((s, r) => s + r.cost, 0);
 

@@ -16,7 +16,7 @@ A left sidebar navigates four areas:
 | **Projects** | Create/edit/delete projects, attach a client, open one into the takeoff. Each project owns its takeoff (layers, traces, calibration). |
 | **Clients** | Client records (name, company, email, phone); linked to projects and proposals. |
 | **Takeoff** | The canvas workspace — import a plan, browse sheets, ask the AI assistant, calibrate, trace, AI-detect, price it out. |
-| **Price book** | Editable assembly + material catalog with search, add/remove rows & assemblies, and **JSON/CSV export + JSON import** (load your 481-item book). Edits reprice every project instantly. |
+| **Price book** | Full estimating catalog (19 assemblies across CSI divisions) with **material + labor + equipment** bare costs, **Overhead & Profit** markup, and a **location (city cost index) factor**. Search, add/remove rows & assemblies, **JSON/CSV export + JSON import** (load your own book). Edits reprice every project instantly. |
 
 Everything persists to `localStorage` (records + vectors). Rendered plan images don't
 persist — re-upload the plan after a refresh; your traces stay put.

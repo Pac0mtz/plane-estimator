@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { ASSEMBLIES } from "../lib/assemblies.js";
+import { ASSEMBLIES, DEFAULT_BOOK_META } from "../lib/assemblies.js";
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 const now = () => new Date().toISOString();
@@ -37,6 +37,8 @@ export const useStore = create(
       projects: [],
       activeProjectId: null,
       priceBook: clonePriceBook(),
+      bookMeta: { ...DEFAULT_BOOK_META }, // location factor + overhead/profit
+      setBookMeta: (patch) => set((s) => ({ bookMeta: { ...s.bookMeta, ...patch } })),
       importProgress: null, // { stage, page, total, pct } while a PDF imports
 
       setView: (view) => {
@@ -401,6 +403,16 @@ export const useStore = create(
     }),
     {
       name: "plan-forge-v1",
+      version: 2,
+      // v2 reworked the price book into a full material+labor+equipment model;
+      // refresh any older cached book while keeping projects/clients.
+      migrate: (state, ver) => {
+        if (ver < 2) {
+          state.priceBook = clonePriceBook();
+          state.bookMeta = { ...DEFAULT_BOOK_META };
+        }
+        return state;
+      },
       // vectors + records persist; rendered images (single or PDF pages) do not.
       partialize: (s) => ({
         view: s.view,
@@ -408,6 +420,7 @@ export const useStore = create(
         projects: s.projects,
         activeProjectId: s.activeProjectId,
         priceBook: s.priceBook,
+        bookMeta: s.bookMeta,
         // live working-set so a refresh keeps the current takeoff
         layers: s.layers,
         activeId: s.activeId,

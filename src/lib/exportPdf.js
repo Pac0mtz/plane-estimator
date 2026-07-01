@@ -100,7 +100,7 @@ export function exportProposalPdf({ rollup, grand, project, client }) {
   // footer note
   doc.setFontSize(8);
   doc.setTextColor(150, 150, 150);
-  doc.text("NW Ohio material cost · Dovinos assemblies · material only, excludes labor & markup", M, doc.internal.pageSize.getHeight() - 28);
+  doc.text("Material + labor + equipment, incl. overhead & profit and location factor · NW-Ohio estimate — verify against supplier quotes", M, doc.internal.pageSize.getHeight() - 28);
 
   const safe = (project?.name || "takeoff").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
   doc.save(`planforge-${safe}.pdf`);
