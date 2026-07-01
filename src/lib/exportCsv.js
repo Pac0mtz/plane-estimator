@@ -22,8 +22,8 @@ export function buildCsv(rollup, grand) {
   return rows.map((r) => r.join(",")).join("\n");
 }
 
-export function download(filename, text) {
-  const blob = new Blob([text], { type: "text/csv" });
+export function download(filename, text, mime = "text/csv") {
+  const blob = new Blob([text], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

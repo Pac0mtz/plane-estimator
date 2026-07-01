@@ -11,3 +11,12 @@ body { overscroll-behavior: none; }
            placeholder:text-slate-600 focus:outline-none focus:border-brand;
   }
 }
+
+/* keyboard-only focus rings for accessibility (mouse clicks stay clean) */
+@layer base {
+  button:focus-visible, a:focus-visible, select:focus-visible, [role="button"]:focus-visible {
+    outline: 2px solid #2f7fd1;
+    outline-offset: 1px;
+    border-radius: 4px;
+  }
+}

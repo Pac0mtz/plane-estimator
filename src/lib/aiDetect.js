@@ -41,7 +41,7 @@ let _n = 0;
 const sid = () => `sg${(_n++).toString(36)}${Date.now().toString(36).slice(-3)}`;
 
 function suggestion(layer, type, pts, confidence, note) {
-  return { id: sid(), layerId: layer.id, layerName: layer.name, color: layer.color, asm: layer.asm, type, pts, confidence, note };
+  return { id: sid(), layerId: layer.id, layerName: layer.name, color: layer.color, asm: layer.asm, type, pts, confidence, note, element: arguments[5] || note };
 }
 
 // --- MOCK detector -----------------------------------------------------------
@@ -89,9 +89,18 @@ function mockDetect({ bg, layers }) {
 }
 
 // --- OpenAI detector (real; runs only when a key is present) -----------------
-const SYSTEM = `You are a construction takeoff assistant. Given a floor-plan or elevation image, detect regions relevant to these trades and return STRICT JSON.
-Return { "detections": [ { "asm": "<one of: brick|eifs|slab|drywall|doors>", "type": "area|linear|count", "points": [[x,y],...], "confidence": 0..1, "note": "short" } ] }.
-Coordinates are NORMALIZED 0..1 relative to image width (x) and height (y). area = polygon (>=3 pts), linear = polyline (>=2 pts), count = single point per item. Only include what you can actually see. Do not invent scale or dimensions.`;
+const SYSTEM = `You are a construction estimator's takeoff assistant. Look at this floor plan / elevation and detect the physical elements an estimator quantifies. Return STRICT JSON only.
+
+Detect and classify EACH element into one of these trades (asm):
+- doors  -> every door leaf (type "count", one point at each door). element e.g. "Entry door", "HM door".
+- drywall -> interior partition walls (type "linear", a polyline tracing the wall centerline -> yields linear feet). element e.g. "Interior partition".
+- brick  -> thin-brick / masonry veneer wall runs on elevations (type "linear"). element "Brick veneer".
+- eifs   -> EIFS wall areas or runs (linear or area). element "EIFS".
+- slab   -> the floor/slab footprint (type "area", polygon around the building interior -> yields SF). element "Slab on grade".
+
+Return { "detections": [ { "asm": "...", "type": "area|linear|count", "element": "short human label", "points": [[x,y],...], "confidence": 0..1, "note": "why / what you see" } ] }.
+Coordinates are NORMALIZED 0..1 (x = fraction of width, y = fraction of height). area polygon needs >=3 points; linear polyline >=2 points; count = one point per item.
+Trace walls along their real run so linear feet are accurate. Detect ALL doors you can see. Only include what is actually visible; set lower confidence when unsure. Do not invent elements.`;
 
 // A blob object URL (how PDF pages are stored) can't be POSTed to OpenAI —
 // convert to a base64 data URL first.
@@ -138,9 +147,42 @@ async function openaiDetect({ imageDataUrl, bg, layers, key }) {
       const type = ["area", "linear", "count"].includes(d.type) ? d.type : "count";
       if (type === "area" && pts.length < 3) return null;
       if (type === "linear" && pts.length < 2) return null;
-      return suggestion(layer, type, type === "count" ? [pts[0]] : pts, d.confidence ?? 0.5, d.note || "");
+      return suggestion(layer, type, type === "count" ? [pts[0]] : pts, d.confidence ?? 0.5, d.note || "", d.element || d.note || layer.name);
     })
     .filter(Boolean);
+}
+
+// --- AI scale detection ------------------------------------------------------
+// Reads the drawing's graphic scale bar or scale note and returns two points a
+// known distance apart, so we can auto-calibrate pixels-per-foot.
+export async function detectScale({ imageDataUrl, bg }) {
+  const key = getKey();
+  if (!key) throw new Error("Add an OpenAI key to auto-detect scale.");
+  const url = await asDataUrl(imageDataUrl);
+  const sys = `You read the SCALE off a construction drawing. Find the graphic scale bar (or a dimension line with a labeled length, or a "SCALE: 1/4\\"=1'-0\\"" note you can measure against a visible feature). Return STRICT JSON: { "a":[x,y], "b":[x,y], "feet": <number>, "source": "scale bar|dimension|note", "confidence":0..1 }. a and b are the two ENDPOINTS (normalized 0..1) of a segment on the image whose real length is "feet". If you cannot find a reliable scale, return { "feet": 0 }.`;
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+    body: JSON.stringify({
+      model: "gpt-4o",
+      response_format: { type: "json_object" },
+      temperature: 0,
+      messages: [
+        { role: "system", content: sys },
+        { role: "user", content: [{ type: "text", text: "Find the scale. JSON only." }, { type: "image_url", image_url: { url } }] },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`OpenAI ${res.status}`);
+  const parsed = JSON.parse((await res.json()).choices?.[0]?.message?.content || "{}");
+  if (!(parsed.feet > 0) || !Array.isArray(parsed.a) || !Array.isArray(parsed.b)) throw new Error("No reliable scale found on this sheet — calibrate manually.");
+  return {
+    a: { x: parsed.a[0] * bg.w, y: parsed.a[1] * bg.h },
+    b: { x: parsed.b[0] * bg.w, y: parsed.b[1] * bg.h },
+    feet: parsed.feet,
+    source: parsed.source || "scale",
+    confidence: parsed.confidence ?? 0.5,
+  };
 }
 
 // Public entry point.

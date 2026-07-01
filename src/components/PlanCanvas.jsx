@@ -3,6 +3,9 @@ import { Stage, Layer, Image as KImage, Rect, Line, Circle, Text, Group } from "
 import { useStore } from "../store/useStore.js";
 import { ASSEMBLIES } from "../lib/assemblies.js";
 import { traceQty, centroid, flatPts } from "../lib/geometry.js";
+import { runAssistant } from "../lib/planAssistant.js";
+import HoverCard from "./HoverCard.jsx";
+import CanvasSearch from "./CanvasSearch.jsx";
 
 function hexToRgba(hex, a) {
   const n = parseInt(hex.slice(1), 16);
@@ -11,13 +14,14 @@ function hexToRgba(hex, a) {
 
 export default function PlanCanvas() {
   const s = useStore();
-  const { bg, imgEl, ppf, tool, layers, traces, draft, calib, activeId, selId, activePage, suggestions } = s;
+  const { bg, imgEl, ppf, tool, layers, traces, draft, calib, measure, activeId, selId, activePage, suggestions } = s;
   const pageTraces = traces.filter((t) => (t.page ?? 0) === activePage);
 
   const wrapRef = useRef(null);
   const stageRef = useRef(null);
   const [size, setSize] = useState({ w: 800, h: 600 });
   const [view, setView] = useState({ scale: 1, x: 0, y: 0 });
+  const [hover, setHover] = useState(null); // world-space cursor for rubber-band previews
 
   // measure container
   useEffect(() => {
@@ -68,8 +72,66 @@ export default function PlanCanvas() {
     if (e.target === stageRef.current) setView((v) => ({ ...v, x: e.target.x(), y: e.target.y() }));
   };
 
+  const needsHover = (tool === "rect" && draft.length) || (tool === "measure" && measure && !measure.b) || (tool === "calibrate" && calib.length === 1);
+  const onMove = () => {
+    if (!needsHover) { if (hover) setHover(null); return; }
+    const p = stageRef.current.getRelativePointerPosition();
+    setHover({ x: p.x, y: p.y });
+  };
+
+  // zoom around the viewport centre (used by the on-canvas +/- buttons)
+  const zoomBy = (f) => {
+    const c = { x: size.w / 2, y: size.h / 2 };
+    const old = view.scale;
+    const mp = { x: (c.x - view.x) / old, y: (c.y - view.y) / old };
+    const scale = Math.max(0.05, Math.min(20, old * f));
+    setView({ scale, x: c.x - mp.x * scale, y: c.y - mp.y * scale });
+  };
+
+  const measFeet = (a, b) => {
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    return ppf ? `${(d / ppf).toFixed(1)} ft` : `${Math.round(d)} px`;
+  };
+
+  // ---- hover inspect + search-to-locate ----
+  const [hovered, setHovered] = useState(null); // { kind, obj, sx, sy }
+  const [flash, setFlash] = useState(null); // plan-coord point pulsed after a search hit
+  const hoverTimer = useRef();
+  const screenPos = (e) => {
+    const r = wrapRef.current.getBoundingClientRect();
+    return { sx: (e.evt?.clientX ?? 0) - r.left, sy: (e.evt?.clientY ?? 0) - r.top };
+  };
+  const hoverProps = (kind, obj) => ({
+    onMouseEnter: (e) => { clearTimeout(hoverTimer.current); const { sx, sy } = screenPos(e); setHovered({ kind, obj, sx, sy }); },
+    onMouseMove: (e) => { const { sx, sy } = screenPos(e); setHovered((h) => (h && h.obj === obj ? { ...h, sx, sy } : h)); },
+    onMouseLeave: () => { clearTimeout(hoverTimer.current); hoverTimer.current = setTimeout(() => setHovered(null), 180); },
+  });
+  const isHot = (id) => hovered?.obj?.id === id;
+
+  const centerOn = (pt, scale) => {
+    const sc = scale || Math.max(view.scale, 1.4);
+    setView({ scale: sc, x: size.w / 2 - pt.x * sc, y: size.h / 2 - pt.y * sc });
+  };
+  // search hit -> centre + flash
+  const locate = (pt) => { centerOn(pt); setFlash({ x: pt.x, y: pt.y }); setTimeout(() => setFlash(null), 1600); };
+
+  // fields for the hover card / search (labels + quantities + centroids)
+  const unitOf = (t) => (t === "area" ? "SF" : t === "linear" ? "LF" : "EA");
+  const qtyText = (o) => {
+    const q = traceQty({ type: o.type, pts: o.pts }, ppf);
+    return ppf ? `${q.toFixed(o.type === "count" ? 0 : 1)} ${unitOf(o.type)}` : `${o.pts.length} pt${o.pts.length === 1 ? "" : "s"} · set scale`;
+  };
+  const layerName = (id) => layers.find((l) => l.id === id)?.name || "";
+  const project = s.activeProject();
+
+  const confirmDetection = (label, layer, qty) => {
+    const addr = project?.address ? ` in ${project.address}` : "";
+    runAssistant(`Review this takeoff detection on the current sheet: "${label}" mapped to the ${layer} layer, ~${qty}. Is that classification and rough quantity reasonable? Note a typical unit material cost for it${addr}.`, { image: true });
+  };
+
   return (
-    <div ref={wrapRef} className="flex-1 min-w-0 bg-slate-800 overflow-hidden">
+    <div ref={wrapRef} className="flex-1 min-w-0 bg-slate-800 overflow-hidden relative">
+      <ZoomControls onFit={fit} onIn={() => zoomBy(1.25)} onOut={() => zoomBy(1 / 1.25)} pct={Math.round(view.scale * 100)} />
       <Stage
         ref={stageRef}
         width={size.w}
@@ -82,6 +144,7 @@ export default function PlanCanvas() {
         onWheel={onWheel}
         onClick={onClick}
         onTap={onClick}
+        onMouseMove={onMove}
         onDragEnd={onDragEnd}
         style={{ cursor: tool === "pan" ? "grab" : tool === "select" ? "default" : "crosshair" }}
       >
@@ -98,15 +161,17 @@ export default function PlanCanvas() {
             const L = layers.find((l) => l.id === tr.layer);
             if (!L || !L.visible) return null;
             const sel = tr.id === selId;
-            const listening = tool === "select";
+            const hot = isHot(tr.id);
+            const emph = sel || hot;
             const pick = (e) => { if (tool === "select") { e.cancelBubble = true; s.setSel(tr.id); } };
+            const hp = { onClick: pick, onTap: pick, listening: true, ...hoverProps("trace", tr) };
 
             if (tr.type === "area") {
               const c = centroid(tr.pts);
               return (
-                <Group key={tr.id} onClick={pick} onTap={pick} listening={listening}>
-                  <Line points={flatPts(tr.pts)} closed fill={hexToRgba(L.color, sel ? 0.5 : 0.28)}
-                    stroke={L.color} strokeWidth={(sel ? 3 : 2) * inv} />
+                <Group key={tr.id} {...hp}>
+                  <Line points={flatPts(tr.pts)} closed fill={hexToRgba(L.color, emph ? 0.5 : 0.28)}
+                    stroke={hot ? "#fff" : L.color} strokeWidth={(emph ? 3 : 2) * inv} />
                   <Label x={c.x} y={c.y} color={L.color} inv={inv} text={`${traceQty(tr, ppf).toFixed(0)} SF`} center />
                 </Group>
               );
@@ -114,18 +179,17 @@ export default function PlanCanvas() {
             if (tr.type === "linear") {
               const mid = tr.pts[Math.floor(tr.pts.length / 2)];
               return (
-                <Group key={tr.id} onClick={pick} onTap={pick} listening={listening}>
-                  <Line points={flatPts(tr.pts)} stroke={L.color} strokeWidth={(sel ? 6 : 4) * inv}
-                    lineCap="round" lineJoin="round"
-                    hitStrokeWidth={14 * inv} />
+                <Group key={tr.id} {...hp}>
+                  <Line points={flatPts(tr.pts)} stroke={hot ? "#fff" : L.color} strokeWidth={(emph ? 6 : 4) * inv}
+                    lineCap="round" lineJoin="round" hitStrokeWidth={14 * inv} />
                   <Label x={mid.x} y={mid.y} color={L.color} inv={inv} text={`${traceQty(tr, ppf).toFixed(1)} LF`} />
                 </Group>
               );
             }
             const p = tr.pts[0];
             return (
-              <Circle key={tr.id} x={p.x} y={p.y} radius={(sel ? 9 : 7) * inv} fill={L.color}
-                stroke="#fff" strokeWidth={2 * inv} onClick={pick} onTap={pick} listening={listening} />
+              <Circle key={tr.id} x={p.x} y={p.y} radius={(emph ? 9 : 7) * inv} fill={L.color}
+                stroke={hot ? "#fff" : "#fff"} strokeWidth={(hot ? 3 : 2) * inv} {...hp} />
             );
           })}
 
@@ -143,28 +207,55 @@ export default function PlanCanvas() {
             </Group>
           )}
 
-          {/* AI suggestions — ghost candidates awaiting confirmation */}
+          {/* AI suggestions — ghost candidates. Hover to inspect, click to accept. */}
           {suggestions.map((sg) => {
             const c = sg.type === "area" ? centroid(sg.pts) : sg.pts[Math.floor(sg.pts.length / 2)] || sg.pts[0];
+            const hot = isHot(sg.id);
             const label = `AI ${Math.round((sg.confidence || 0) * 100)}%`;
+            const hp = { onClick: (e) => { e.cancelBubble = true; s.acceptSuggestion(sg.id); }, onTap: (e) => { e.cancelBubble = true; s.acceptSuggestion(sg.id); }, listening: true, ...hoverProps("suggestion", sg) };
             return (
-              <Group key={sg.id} listening={false} opacity={0.9}>
+              <Group key={sg.id} opacity={0.95} {...hp}>
                 {sg.type === "area" && (
-                  <Line points={flatPts(sg.pts)} closed fill={hexToRgba(sg.color, 0.16)} stroke={sg.color}
-                    strokeWidth={2 * inv} dash={[10 * inv, 6 * inv]} />
+                  <Line points={flatPts(sg.pts)} closed fill={hexToRgba(sg.color, hot ? 0.32 : 0.16)} stroke={hot ? "#fff" : sg.color}
+                    strokeWidth={(hot ? 3 : 2) * inv} dash={[10 * inv, 6 * inv]} />
                 )}
                 {sg.type === "linear" && (
-                  <Line points={flatPts(sg.pts)} stroke={sg.color} strokeWidth={4 * inv}
-                    dash={[10 * inv, 6 * inv]} lineCap="round" />
+                  <Line points={flatPts(sg.pts)} stroke={hot ? "#fff" : sg.color} strokeWidth={(hot ? 6 : 4) * inv}
+                    dash={[10 * inv, 6 * inv]} lineCap="round" hitStrokeWidth={16 * inv} />
                 )}
                 {sg.type === "count" && (
-                  <Circle x={sg.pts[0].x} y={sg.pts[0].y} radius={7 * inv} fill={hexToRgba(sg.color, 0.5)}
-                    stroke={sg.color} strokeWidth={2 * inv} dash={[3 * inv, 3 * inv]} />
+                  <Circle x={sg.pts[0].x} y={sg.pts[0].y} radius={(hot ? 9 : 7) * inv} fill={hexToRgba(sg.color, 0.5)}
+                    stroke={hot ? "#fff" : sg.color} strokeWidth={2 * inv} dash={[3 * inv, 3 * inv]} />
                 )}
                 <Label x={c.x} y={c.y} color={sg.color} inv={inv} text={label} center />
               </Group>
             );
           })}
+
+          {/* search-hit flash marker */}
+          {flash && (
+            <Circle x={flash.x} y={flash.y} radius={16 * inv} stroke="#facc15" strokeWidth={3 * inv} listening={false} />
+          )}
+
+          {/* rectangle rubber-band preview */}
+          {tool === "rect" && draft.length === 1 && hover && (
+            <Line points={[draft[0].x, draft[0].y, hover.x, draft[0].y, hover.x, hover.y, draft[0].x, hover.y]}
+              closed fill={hexToRgba(activeColor, 0.2)} stroke={activeColor} strokeWidth={2 * inv} dash={[6 * inv, 4 * inv]} listening={false} />
+          )}
+
+          {/* measure (ruler) — non-destructive */}
+          {measure && (measure.b || hover) && (() => {
+            const end = measure.b || hover;
+            const mid = { x: (measure.a.x + end.x) / 2, y: (measure.a.y + end.y) / 2 };
+            return (
+              <Group listening={false}>
+                <Line points={[measure.a.x, measure.a.y, end.x, end.y]} stroke="#22d3ee" strokeWidth={2 * inv} dash={[8 * inv, 4 * inv]} />
+                <Circle x={measure.a.x} y={measure.a.y} radius={4 * inv} fill="#22d3ee" />
+                <Circle x={end.x} y={end.y} radius={4 * inv} fill="#22d3ee" />
+                <Label x={mid.x} y={mid.y} color="#22d3ee" inv={inv} text={measFeet(measure.a, end)} center />
+              </Group>
+            );
+          })()}
 
           {/* calibration */}
           {calib.length > 0 && (
@@ -179,6 +270,31 @@ export default function PlanCanvas() {
           )}
         </Layer>
       </Stage>
+
+      <CanvasSearch traces={pageTraces} suggestions={suggestions} layerName={layerName} qtyText={qtyText} onLocate={locate} />
+
+      {hovered && (
+        <HoverCard
+          kind={hovered.kind} obj={hovered.obj} sx={hovered.sx} sy={hovered.sy} wrapW={size.w}
+          layerName={hovered.kind === "trace" ? layerName(hovered.obj.layer) : hovered.obj.layerName}
+          qty={qtyText(hovered.obj)}
+          onKeep={() => clearTimeout(hoverTimer.current)}
+          onDismiss={() => setHovered(null)}
+          onAccept={hovered.kind === "suggestion" ? () => { s.acceptSuggestion(hovered.obj.id); setHovered(null); } : null}
+          onDelete={hovered.kind === "trace" ? () => { s.setSel(hovered.obj.id); s.deleteSel(); setHovered(null); } : null}
+          onConfirm={() => confirmDetection(hovered.kind === "suggestion" ? hovered.obj.element : layerName(hovered.obj.layer), hovered.kind === "suggestion" ? hovered.obj.layerName : layerName(hovered.obj.layer), qtyText(hovered.obj))}
+        />
+      )}
+    </div>
+  );
+}
+
+function ZoomControls({ onFit, onIn, onOut, pct }) {
+  return (
+    <div className="absolute bottom-3 left-3 z-30 flex items-center gap-1 rounded-lg bg-slate-900/90 border border-slate-700 p-1 shadow-lg">
+      <button onClick={onOut} aria-label="Zoom out" className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-700 text-slate-200 text-lg leading-none">−</button>
+      <button onClick={onFit} aria-label="Fit to view" className="px-2 h-7 rounded hover:bg-slate-700 text-slate-300 text-xs tabular-nums min-w-[3rem]">{pct}%</button>
+      <button onClick={onIn} aria-label="Zoom in" className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-700 text-slate-200 text-lg leading-none">+</button>
     </div>
   );
 }

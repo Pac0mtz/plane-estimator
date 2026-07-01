@@ -136,6 +136,36 @@ export const useStore = create(
         }),
       updateAssembly: (asmKey, patch) =>
         set((s) => ({ priceBook: { ...s.priceBook, [asmKey]: { ...s.priceBook[asmKey], ...patch } } })),
+      addMaterial: (asmKey) =>
+        set((s) => {
+          const asm = s.priceBook[asmKey];
+          const u = asm.geom === "linear" ? "LF" : asm.geom === "count" ? "ea" : "SF";
+          return { priceBook: { ...s.priceBook, [asmKey]: { ...asm, materials: [...asm.materials, { name: "New material", per: 1, waste: 0, u, cost: 0 }] } } };
+        }),
+      removeMaterial: (asmKey, idx) =>
+        set((s) => ({ priceBook: { ...s.priceBook, [asmKey]: { ...s.priceBook[asmKey], materials: s.priceBook[asmKey].materials.filter((_, i) => i !== idx) } } })),
+      addAssembly: () =>
+        set((s) => {
+          const key = "custom" + uid();
+          return { priceBook: { ...s.priceBook, [key]: { name: "New assembly", unit: "SF", geom: "area", materials: [{ name: "New material", per: 1, waste: 0, u: "SF", cost: 0 }] } } };
+        }),
+      removeAssembly: (asmKey) =>
+        set((s) => {
+          const pb = { ...s.priceBook };
+          delete pb[asmKey];
+          return { priceBook: pb };
+        }),
+      importPriceBook: (obj) => {
+        // validate: object of { name, unit, geom, materials:[] }
+        if (!obj || typeof obj !== "object") return false;
+        const clean = {};
+        for (const [k, v] of Object.entries(obj)) {
+          if (v && Array.isArray(v.materials) && v.name) clean[k] = v;
+        }
+        if (!Object.keys(clean).length) return false;
+        set({ priceBook: clean });
+        return true;
+      },
       resetPriceBook: () => set({ priceBook: clonePriceBook() }),
 
       // --------------------------------------------------------- import progress
@@ -150,10 +180,30 @@ export const useStore = create(
       pages: [DEMO_PAGE],
       pageImgs: {},
       activePage: 0,
+      sheetIndex: [], // [{ no, title, discipline }] parsed from the plan set
 
-      tool: "select",
+      // AI plan assistant chat (per open plan set; not persisted)
+      chat: [],
+      chatBusy: false,
+      assistantOpen: false,
+      planSummary: null, // { busy, summary, trades:[{trade,sheets,scope}], note, error }
+      pushChat: (msg) => set((s) => ({ chat: [...s.chat, msg] })),
+      setChatBusy: (chatBusy) => set({ chatBusy }),
+      clearChat: () => set({ chat: [] }),
+      setAssistantOpen: (assistantOpen) => set({ assistantOpen }),
+      toggleAssistant: () => set((s) => ({ assistantOpen: !s.assistantOpen })),
+
+      // collapsible takeoff panels
+      showTools: true,
+      showAnalysis: true,
+      toggleTools: () => set((s) => ({ showTools: !s.showTools })),
+      toggleAnalysis: () => set((s) => ({ showAnalysis: !s.showAnalysis })),
+      setPlanSummary: (planSummary) => set({ planSummary }),
+
+      tool: "select", // select | pan | calibrate | draw | rect | measure
       activeId: "l1",
       selId: null,
+      measure: null, // { a, b } non-destructive ruler in world coords
 
       layers: START_LAYERS.map((l) => ({ ...l })),
       traces: [],
@@ -164,7 +214,7 @@ export const useStore = create(
       aiBusy: false,
       aiError: null,
 
-      setTool: (tool) => set({ tool, draft: [], calib: [] }),
+      setTool: (tool) => set({ tool, draft: [], calib: [], measure: null }),
       setActive: (activeId) => set({ activeId, draft: [] }),
       setSel: (selId) => set({ selId }),
 
@@ -177,8 +227,19 @@ export const useStore = create(
 
       addPoint: (p) => {
         const s = get();
+        if (s.tool === "measure") {
+          set({ measure: !s.measure || s.measure.b ? { a: p } : { a: s.measure.a, b: p } });
+          return;
+        }
         if (s.tool === "calibrate") {
           set({ calib: s.calib.length >= 2 ? [p] : [...s.calib, p] });
+          return;
+        }
+        if (s.tool === "rect") {
+          if (!s.draft.length) { set({ draft: [p] }); return; }
+          const a = s.draft[0];
+          const pts = [a, { x: p.x, y: a.y }, p, { x: a.x, y: p.y }];
+          set({ traces: [...s.traces, { id: uid(), layer: s.activeId, page: s.activePage, type: "area", pts }], draft: [] });
           return;
         }
         if (s.tool !== "draw") return;
@@ -218,6 +279,17 @@ export const useStore = create(
           return { ppf: Math.hypot(dx, dy) / feet, ppfNote: "calibrated", calib: [], tool: "select" };
         }),
 
+      // set scale from two plan-coord points a known distance apart (AI scale)
+      setScaleFromPoints: (a, b, feet, note = "AI scale") =>
+        set(() => {
+          if (!(feet > 0)) return {};
+          return { ppf: Math.hypot(a.x - b.x, a.y - b.y) / feet, ppfNote: note, calib: [], tool: "select" };
+        }),
+
+      // search-to-locate: a plan-coord point the canvas centers + flashes on
+      focusTarget: null,
+      setFocusTarget: (focusTarget) => set({ focusTarget }),
+
       loadImage: (href, imgEl) =>
         set({
           pages: [{ type: "img", href, w: imgEl.naturalWidth, h: imgEl.naturalHeight, loaded: true }],
@@ -233,9 +305,13 @@ export const useStore = create(
           tool: "calibrate",
         }),
 
-      loadPdf: (thumbs) =>
+      loadPdf: (thumbs, sheetIndex = []) =>
         set({
-          pages: thumbs.map((t) => ({ type: "img", w: t.w, h: t.h, dpi: t.dpi, thumb: t.thumb, loaded: false })),
+          pages: thumbs.map((t) => ({
+            type: "img", w: t.w, h: t.h, dpi: t.dpi, thumb: t.thumb, loaded: false,
+            text: t.text || "", sheetNo: t.sheetNo || null, title: t.title || "", discipline: t.discipline || null,
+          })),
+          sheetIndex,
           pageImgs: {},
           activePage: 0,
           bg: { type: "img", w: thumbs[0].w, h: thumbs[0].h },
@@ -243,10 +319,18 @@ export const useStore = create(
           draft: [],
           selId: null,
           suggestions: [],
+          chat: [],
+          planSummary: null,
           ppf: null,
           ppfNote: "not set — calibrate",
           tool: "calibrate",
         }),
+
+      // the currently-open sheet's parsed metadata + text (for the assistant)
+      activeSheet: () => {
+        const s = get();
+        return s.pages[s.activePage] || null;
+      },
 
       setPageImage: (i, { href, w, h, dpi, img }) =>
         set((s) => {

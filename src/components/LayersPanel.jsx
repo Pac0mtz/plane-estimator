@@ -14,6 +14,8 @@ export default function LayersPanel({ rollup }) {
         {rollup.map((r) => (
           <div key={r.layer.id}
             onClick={() => setActive(r.layer.id)}
+            role="button" tabIndex={0} aria-pressed={activeId === r.layer.id} aria-label={`${r.layer.name} layer`}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setActive(r.layer.id); } }}
             className={`rounded p-2 cursor-pointer border ${
               activeId === r.layer.id ? "border-brand bg-slate-800" : "border-transparent bg-slate-900 hover:bg-slate-800"
             }`}>
@@ -21,6 +23,7 @@ export default function LayersPanel({ rollup }) {
               <span className="w-3 h-3 rounded-sm shrink-0" style={{ background: r.layer.color }} />
               <span className="text-sm font-medium flex-1 truncate">{r.layer.name}</span>
               <button onClick={(e) => { e.stopPropagation(); toggleLayer(r.layer.id); }}
+                aria-label={r.layer.visible ? `Hide ${r.layer.name}` : `Show ${r.layer.name}`}
                 className="text-slate-400 hover:text-white">
                 {r.layer.visible ? <Eye size={15} /> : <EyeOff size={15} />}
               </button>

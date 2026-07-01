@@ -35,7 +35,8 @@ export default function Sidebar() {
         <div className="w-7 h-7 rounded flex items-center justify-center font-black text-sm shrink-0"
           style={{ background: "linear-gradient(135deg,#0a2540,#2f7fd1)" }}>P</div>
         {open && <span className="font-bold tracking-tight text-slate-100 truncate">Plan Forge</span>}
-        <button onClick={() => setOpen((v) => !v)} className="ml-auto text-slate-500 hover:text-slate-200">
+        <button onClick={() => setOpen((v) => !v)} aria-label={open ? "Collapse sidebar" : "Expand sidebar"}
+          className="ml-auto text-slate-500 hover:text-slate-200">
           <ChevronLeft size={16} className={open ? "" : "rotate-180"} />
         </button>
       </div>

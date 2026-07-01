@@ -16,6 +16,7 @@
 // ---------------------------------------------------------------------------
 import * as pdfjs from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { parseSheetIndex, detectSheet, guessSheetNo, disciplineOf } from "./planIndex.js";
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -96,6 +97,7 @@ export async function openPdf(file, { thumbDim = 160, onProgress } = {}) {
 
   const numPages = _doc.numPages;
   const thumbs = [];
+  const texts = [];
   for (let i = 1; i <= numPages; i++) {
     report("thumbnails", i - 1, numPages);
     const page = await _doc.getPage(i);
@@ -103,16 +105,37 @@ export async function openPdf(file, { thumbDim = 160, onProgress } = {}) {
     const fullScale = scaleForPage(base);
     const thumbScale = thumbDim / Math.max(base.width, base.height);
     const canvas = await renderToCanvas(page, thumbScale);
+
+    // pull the text layer (vector CAD sets carry real text — near free)
+    let text = "";
+    try {
+      const tc = await page.getTextContent();
+      text = tc.items.map((it) => it.str).join(" ").replace(/\s+/g, " ").trim();
+    } catch { /* scanned page — no text layer */ }
+    texts.push(text);
+
     thumbs.push({
       w: Math.round(base.width * fullScale),
       h: Math.round(base.height * fullScale),
       dpi: effectiveDpi(base),
       thumb: canvas.toDataURL("image/webp", 0.6),
+      text,
     });
     page.cleanup();
   }
   report("thumbnails", numPages, numPages);
-  return { numPages, thumbs };
+
+  // build the sheet index off the cover pages, then label every page
+  const index = parseSheetIndex(texts.slice(0, 4).join(" \n "));
+  thumbs.forEach((t, i) => {
+    const det = detectSheet(t.text, index) || (guessSheetNo(t.text) ? { no: guessSheetNo(t.text), title: "" } : null);
+    t.sheetNo = det?.no || null;
+    t.title = det?.title || (index.get(det?.no) ?? "");
+    t.discipline = disciplineOf(t.sheetNo);
+  });
+  const sheetIndex = [...index].map(([no, title]) => ({ no, title, discipline: disciplineOf(no) }));
+
+  return { numPages, thumbs, sheetIndex };
 }
 
 // Render a single page at full (DPI-aware) resolution.
