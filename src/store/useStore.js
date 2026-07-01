@@ -243,6 +243,8 @@ export const useStore = create(
 
       addPoint: (p) => {
         const s = get();
+        // constrain every point to the plan bounds so nothing lands off-sheet
+        p = { x: Math.max(0, Math.min(s.bg.w, p.x)), y: Math.max(0, Math.min(s.bg.h, p.y)) };
         if (s.tool === "measure") {
           set({ measure: !s.measure || s.measure.b ? { a: p } : { a: s.measure.a, b: p } });
           return;
@@ -288,9 +290,17 @@ export const useStore = create(
       // mark a trace in/out of scope (excluded traces never count in the rollup)
       toggleExclude: (id) =>
         set((s) => ({ traces: s.traces.map((t) => (t.id === id ? { ...t, excluded: !t.excluded } : t)) })),
-      // move a trace's vertices (edit detected areas)
+      // move a trace's vertices (edit detected areas) — clamped to plan bounds
       updateTracePts: (id, pts) =>
-        set((s) => ({ traces: s.traces.map((t) => (t.id === id ? { ...t, pts } : t)) })),
+        set((s) => {
+          const cl = pts.map((p) => ({ x: Math.max(0, Math.min(s.bg.w, p.x)), y: Math.max(0, Math.min(s.bg.h, p.y)) }));
+          return { traces: s.traces.map((t) => (t.id === id ? { ...t, pts: cl } : t)) };
+        }),
+
+      // snap any existing traces onto the plan (used when an image loads, so a
+      // trace made on a differently-sized render can't float off the sheet)
+      clampTracesTo: (w, h) =>
+        set((s) => ({ traces: s.traces.map((t) => ({ ...t, pts: (t.pts || []).map((p) => ({ x: Math.max(0, Math.min(w, p.x)), y: Math.max(0, Math.min(h, p.y)) })) })) })),
 
       deleteSel: () => set((s) => ({ traces: s.traces.filter((t) => t.id !== s.selId), selId: null })),
 
@@ -444,6 +454,13 @@ export const useStore = create(
           if (i === s.activePage) {
             patch.bg = { type: "img", href, w, h };
             patch.imgEl = img;
+            // snap this page's traces onto the freshly-loaded sheet so a trace
+            // made against a smaller/placeholder render can't float off-sheet
+            patch.traces = s.traces.map((t) =>
+              (t.page ?? 0) === i
+                ? { ...t, pts: (t.pts || []).map((p) => ({ x: Math.max(0, Math.min(w, p.x)), y: Math.max(0, Math.min(h, p.y)) })) }
+                : t
+            );
           }
           return patch;
         }),
