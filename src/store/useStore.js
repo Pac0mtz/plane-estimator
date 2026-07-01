@@ -541,6 +541,16 @@ export const useStore = create(
         }
         return state;
       },
+      // on reload a project is active but its plan image is gone (not persisted);
+      // open it to the upload prompt instead of the demo backdrop.
+      onRehydrateStorage: () => (state) => {
+        if (state && state.activeProjectId) {
+          state.bg = { type: "empty", w: DEMO.w, h: DEMO.h };
+          state.pages = [EMPTY_PAGE];
+          state.pageImgs = {};
+          state.imgEl = null;
+        }
+      },
       // vectors + records persist; rendered images (single or PDF pages) do not.
       partialize: (s) => ({
         view: s.view,
