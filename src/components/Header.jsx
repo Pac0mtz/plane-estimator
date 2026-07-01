@@ -73,7 +73,7 @@ export default function Header({ onExport, projectName, assistantOpen, onToggleA
 
       {/* plan cluster */}
       <div className="flex items-center gap-1.5">
-        <HBtn icon={RotateCcw} label="Demo" onClick={s.resetDemo} title="Reset to demo plan" show="xl" />
+        {!projectName && <HBtn icon={RotateCcw} label="Demo" onClick={s.resetDemo} title="Reset to demo plan" show="xl" />}
         <HBtn icon={Upload} label={busy ? "Reading…" : "Upload"} onClick={() => fileRef.current?.click()} disabled={busy} spin={busy}
           title="Upload a PDF or image plan" show="md" />
         <HBtn icon={Download} label="Export" tone="primary" onClick={onExport} title="Export proposal / CSV" show="md" />

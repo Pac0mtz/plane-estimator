@@ -4,7 +4,8 @@ import { useStore } from "../store/useStore.js";
 import { ASSEMBLIES } from "../lib/assemblies.js";
 import { traceQty, centroid, flatPts } from "../lib/geometry.js";
 import { runAssistant } from "../lib/planAssistant.js";
-import { Maximize } from "lucide-react";
+import { importPlanFile, ACCEPT } from "../lib/importPlan.js";
+import { Maximize, UploadCloud } from "lucide-react";
 import HoverCard from "./HoverCard.jsx";
 import CanvasSearch from "./CanvasSearch.jsx";
 
@@ -164,9 +165,9 @@ export default function PlanCanvas() {
         <Layer listening={false}>
           {bg.type === "img" && imgEl ? (
             <KImage image={imgEl} width={bg.w} height={bg.h} />
-          ) : (
+          ) : bg.type === "demo" ? (
             <DemoPlan />
-          )}
+          ) : null}
         </Layer>
 
         <Layer>
@@ -306,7 +307,9 @@ export default function PlanCanvas() {
         </Layer>
       </Stage>
 
-      <CanvasSearch traces={pageTraces} suggestions={suggestions} layerName={layerName} qtyText={qtyText} onLocate={locate} />
+      {bg.type === "empty" && <UploadPrompt traceCount={traces.length} />}
+
+      {bg.type !== "empty" && <CanvasSearch traces={pageTraces} suggestions={suggestions} layerName={layerName} qtyText={qtyText} onLocate={locate} />}
 
       {(() => {
         const card = pinned || hovered;
@@ -328,6 +331,26 @@ export default function PlanCanvas() {
           />
         );
       })()}
+    </div>
+  );
+}
+
+// Shown on a project's canvas before any plan has been imported.
+function UploadPrompt({ traceCount }) {
+  const ref = useRef(null);
+  const onFile = async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) await importPlanFile(f, useStore.getState()); };
+  return (
+    <div className="absolute inset-0 z-20 flex items-center justify-center p-6">
+      <div className="text-center max-w-xs">
+        <div className="mx-auto w-14 h-14 rounded-xl bg-slate-800 flex items-center justify-center text-brand mb-3"><UploadCloud size={26} /></div>
+        <div className="text-slate-200 font-semibold">Upload a plan to start</div>
+        <div className="text-sm text-slate-500 mt-1">PDF plan set or image. Drag &amp; drop onto the canvas, or</div>
+        <button onClick={() => ref.current?.click()} className="mt-3 inline-flex items-center gap-1.5 text-sm px-3.5 py-2 rounded-lg bg-brand hover:bg-brand2 text-white font-medium">
+          <UploadCloud size={15} /> Upload plan
+        </button>
+        {traceCount > 0 && <div className="text-[11px] text-amber-400/90 mt-3">You have {traceCount} saved trace{traceCount === 1 ? "" : "s"} — re-upload the same plan to see them.</div>}
+        <input ref={ref} type="file" accept={ACCEPT} className="hidden" onChange={onFile} />
+      </div>
     </div>
   );
 }

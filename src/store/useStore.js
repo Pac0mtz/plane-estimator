@@ -8,6 +8,8 @@ const now = () => new Date().toISOString();
 // demo shell plan (~33' x 72' at 8 px/ft), echoes Chipotle #6277
 export const DEMO = { w: 820, h: 680, ppf: 8 };
 const DEMO_PAGE = { type: "demo", w: DEMO.w, h: DEMO.h, thumb: null, loaded: true };
+// a project with no plan uploaded yet shows an upload prompt, not the demo
+const EMPTY_PAGE = { type: "empty", w: DEMO.w, h: DEMO.h, thumb: null, loaded: true };
 
 // distinct colors auto-assigned to new layers (walls/areas each get their own)
 export const PALETTE = [
@@ -32,8 +34,8 @@ const freshTakeoff = (trades) => ({
       ? trades.map((asm, i) => ({ id: "l" + i + Math.random().toString(36).slice(2, 6), name: (ASSEMBLIES[asm]?.name || asm), color: PALETTE[i % PALETTE.length], asm, visible: true }))
       : START_LAYERS.map((l) => ({ ...l })),
   traces: [],
-  ppf: DEMO.ppf,
-  ppfNote: "demo scale",
+  ppf: null,
+  ppfNote: "not set — calibrate",
 });
 
 // deep clone the built-in catalog so the Price Book is independently editable
@@ -120,13 +122,13 @@ export const useStore = create(
           view: "takeoff",
           layers: t.layers?.length ? t.layers : START_LAYERS.map((l) => ({ ...l })),
           traces: t.traces || [],
-          ppf: t.ppf ?? DEMO.ppf,
-          ppfNote: t.ppfNote || "demo scale",
-          // images can't persist — start on the demo backdrop; re-upload the plan
-          pages: [DEMO_PAGE],
+          ppf: t.ppf ?? null,
+          ppfNote: t.ppfNote || "not set — calibrate",
+          // images can't persist — open to an upload prompt; import the plan
+          pages: [EMPTY_PAGE],
           pageImgs: {},
           activePage: 0,
-          bg: { type: "demo", w: DEMO.w, h: DEMO.h },
+          bg: { type: "empty", w: DEMO.w, h: DEMO.h },
           imgEl: null,
           tool: "select",
           activeId: t.layers?.[0]?.id || "l1",
