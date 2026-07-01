@@ -11,7 +11,8 @@ function hexToRgba(hex, a) {
 
 export default function PlanCanvas() {
   const s = useStore();
-  const { bg, imgEl, ppf, tool, layers, traces, draft, calib, activeId, selId } = s;
+  const { bg, imgEl, ppf, tool, layers, traces, draft, calib, activeId, selId, activePage, suggestions } = s;
+  const pageTraces = traces.filter((t) => (t.page ?? 0) === activePage);
 
   const wrapRef = useRef(null);
   const stageRef = useRef(null);
@@ -93,7 +94,7 @@ export default function PlanCanvas() {
         </Layer>
 
         <Layer>
-          {traces.map((tr) => {
+          {pageTraces.map((tr) => {
             const L = layers.find((l) => l.id === tr.layer);
             if (!L || !L.visible) return null;
             const sel = tr.id === selId;
@@ -141,6 +142,29 @@ export default function PlanCanvas() {
               ))}
             </Group>
           )}
+
+          {/* AI suggestions — ghost candidates awaiting confirmation */}
+          {suggestions.map((sg) => {
+            const c = sg.type === "area" ? centroid(sg.pts) : sg.pts[Math.floor(sg.pts.length / 2)] || sg.pts[0];
+            const label = `AI ${Math.round((sg.confidence || 0) * 100)}%`;
+            return (
+              <Group key={sg.id} listening={false} opacity={0.9}>
+                {sg.type === "area" && (
+                  <Line points={flatPts(sg.pts)} closed fill={hexToRgba(sg.color, 0.16)} stroke={sg.color}
+                    strokeWidth={2 * inv} dash={[10 * inv, 6 * inv]} />
+                )}
+                {sg.type === "linear" && (
+                  <Line points={flatPts(sg.pts)} stroke={sg.color} strokeWidth={4 * inv}
+                    dash={[10 * inv, 6 * inv]} lineCap="round" />
+                )}
+                {sg.type === "count" && (
+                  <Circle x={sg.pts[0].x} y={sg.pts[0].y} radius={7 * inv} fill={hexToRgba(sg.color, 0.5)}
+                    stroke={sg.color} strokeWidth={2 * inv} dash={[3 * inv, 3 * inv]} />
+                )}
+                <Label x={c.x} y={c.y} color={sg.color} inv={inv} text={label} center />
+              </Group>
+            );
+          })}
 
           {/* calibration */}
           {calib.length > 0 && (

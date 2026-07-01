@@ -22,7 +22,7 @@ export default function Toolbar() {
   const geomIcon = geom === "area" ? <Square size={15} /> : geom === "linear" ? <Minus size={15} /> : <Hash size={15} />;
 
   return (
-    <div className="w-44 shrink-0 border-r border-slate-800 bg-slate-950 p-2.5 flex flex-col gap-1.5 overflow-y-auto">
+    <div className="w-40 xl:w-44 shrink-0 border-r border-slate-800 bg-slate-950 p-2.5 flex flex-col gap-1.5 overflow-y-auto">
       <Label>Tools</Label>
       <Btn ic={<MousePointer2 size={15} />} label="Select" on={s.tool === "select"} onClick={() => s.setTool("select")} />
       <Btn ic={<Hand size={15} />} label="Pan" on={s.tool === "pan"} onClick={() => s.setTool("pan")} />

@@ -72,9 +72,10 @@ export const ASSEMBLIES = {
   },
 };
 
-// explode a measured quantity into priced materials
-export function explode(assemblyKey, qty) {
-  const asm = ASSEMBLIES[assemblyKey];
+// explode a measured quantity into priced materials.
+// `catalog` lets the editable Price Book override the built-in ASSEMBLIES.
+export function explode(assemblyKey, qty, catalog = ASSEMBLIES) {
+  const asm = catalog[assemblyKey] || ASSEMBLIES[assemblyKey];
   if (!asm) return { materials: [], cost: 0 };
   const materials = asm.materials.map((m) => {
     const mqty = qty * m.per * (1 + m.waste);
