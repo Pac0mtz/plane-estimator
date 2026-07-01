@@ -55,7 +55,9 @@ function mockDetect({ bg }) {
     : { x: 0.31 * bg.w, y: 0.07 * bg.h, w: 0.32 * bg.w, h: 0.83 * bg.h };
   const X = (f) => Math.round(box.x + f * box.w);
   const Y = (f) => Math.round(box.y + f * box.h);
-  const det = (asm, type, pts, confidence, element) => ({ asm, type, pts, confidence, element, note: element });
+  // sample:true marks these as canned placeholders (fixed positions, plan-
+  // agnostic) so the UI can never pass them off as a real reading of the plan.
+  const det = (asm, type, pts, confidence, element) => ({ asm, type, pts, confidence, element, note: element, sample: true });
   return [
     det("slab", "area", [{ x: X(0.03), y: Y(0.02) }, { x: X(0.97), y: Y(0.02) }, { x: X(0.97), y: Y(0.98) }, { x: X(0.03), y: Y(0.98) }], 0.82, "Slab-on-grade footprint"),
     det("brick", "linear", [{ x: X(0), y: Y(0) }, { x: X(1), y: Y(0) }], 0.64, "Exterior wall — brick veneer"),

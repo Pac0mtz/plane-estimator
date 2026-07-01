@@ -9,12 +9,14 @@ const unitOf = (asm) => ASSEMBLIES[asm]?.unit || "";
 // Estimator-confirms panel. AI drops candidate traces here; accepting one turns
 // it into a real trace that flows into the pricing engine. Rejecting drops it.
 export default function AiReviewPanel() {
-  const { suggestions, aiError, acceptSuggestion, rejectSuggestion, acceptAllSuggestions, clearSuggestions } = useStore();
+  const { suggestions, aiError, planSummary, acceptSuggestion, rejectSuggestion, acceptAllSuggestions, clearSuggestions } = useStore();
   const [showKey, setShowKey] = useState(false);
   const [keyVal, setKeyVal] = useState("");
   const [keyErr, setKeyErr] = useState("");
 
   const hasSuggestions = suggestions.length > 0;
+  const hasSample = suggestions.some((s) => s.sample);
+  const scheduleTrades = planSummary?.trades?.length ? planSummary.trades : null;
   if (!hasSuggestions && !aiError && !showKey) {
     // compact affordance to configure the key / explain demo mode
     return (
@@ -76,12 +78,33 @@ export default function AiReviewPanel() {
 
         {hasSuggestions && (
           <>
+            {hasSample ? (
+              <div className="p-2.5 border-b border-amber-900/50 bg-amber-950/30 text-[11px] text-amber-300 flex gap-1.5">
+                <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+                <span><b>Sample data — not from your plan.</b> These are fixed placeholder boxes that demo the confirm→price flow. Add an OpenAI key for a real reading.</span>
+              </div>
+            ) : (
+              <div className="p-2.5 border-b border-slate-800 bg-slate-950/60 text-[11px] text-slate-400 flex gap-1.5">
+                <AlertTriangle size={13} className="shrink-0 mt-0.5 text-slate-500" />
+                <span>Approximate vision pre-seed — <b className="text-slate-300">confirm each before it prices</b>. Vision often misses individual doors/windows and isn't pixel-exact; cross-check against the schedule below.</span>
+              </div>
+            )}
+            {scheduleTrades && (
+              <div className="p-2.5 border-b border-slate-800 bg-slate-900">
+                <div className="text-[10px] uppercase tracking-wide text-emerald-400/80 font-semibold mb-1">From the plan schedule (reliable)</div>
+                <ul className="space-y-0.5">
+                  {scheduleTrades.map((t, i) => (
+                    <li key={i} className="text-[11px] text-slate-300 truncate"><span className="text-slate-200 font-medium">{t.trade}</span>{t.scope ? <span className="text-slate-500"> · {t.scope}</span> : null}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="divide-y divide-slate-800 max-h-64 overflow-y-auto">
               {suggestions.map((sg) => (
                 <div key={sg.id} className="p-2 flex items-center gap-2 text-[11px]">
                   <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: sg.color }} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-slate-200 truncate">{sg.layerName} <span className="text-slate-500">· {sg.type}</span></div>
+                    <div className="text-slate-200 truncate">{sg.layerName} <span className="text-slate-500">· {sg.type}</span>{sg.sample && <span className="ml-1 text-[9px] uppercase tracking-wide px-1 py-0.5 rounded bg-amber-900/60 text-amber-300">sample</span>}</div>
                     <div className="text-slate-500 truncate">{sg.note}</div>
                   </div>
                   <ConfidenceBadge c={sg.confidence} />

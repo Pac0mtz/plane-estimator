@@ -276,7 +276,9 @@ export default function PlanCanvas() {
             const c = sg.type === "area" ? centroid(sg.pts) : sg.pts[Math.floor(sg.pts.length / 2)] || sg.pts[0];
             const hot = isHot(sg.id);
             const cc = confColor(sg.confidence);
-            const label = `${sg.element || sg.layerName || "AI"} · ${Math.round((sg.confidence || 0) * 100)}%`;
+            const label = sg.sample
+              ? `SAMPLE · ${sg.element || sg.layerName || "AI"}`
+              : `${sg.element || sg.layerName || "AI"} · ${Math.round((sg.confidence || 0) * 100)}%`;
             const pinIt = (e) => { e.cancelBubble = true; setPinned({ kind: "suggestion", obj: sg, ...screenPos(e) }); };
             const hp = { onClick: pinIt, onTap: pinIt, listening: true, ...hoverProps("suggestion", sg) };
             const showChip = hot || labelsOn;

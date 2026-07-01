@@ -375,6 +375,7 @@ export const useStore = create(
             suggestions.push({
               id: uid(), layerId: layer.id, layerName: layer.name, color: layer.color, asm: d.asm,
               type: d.type, pts: d.pts, confidence: d.confidence, note: d.note, element: d.element || d.note,
+              sample: !!d.sample,
             });
           }
           return { layers, suggestions, aiBusy: false, aiError: null };
