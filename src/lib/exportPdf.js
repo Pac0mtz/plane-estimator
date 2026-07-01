@@ -9,7 +9,7 @@ const money = (n) => "$" + Math.round(n).toLocaleString();
 const NAVY = [10, 37, 64];
 const BRAND = [47, 127, 209];
 
-export function exportProposalPdf({ rollup, grand, project, client }) {
+export function exportProposalPdf({ rollup, grand, project, client, title, preparedBy, notes }) {
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   const W = doc.internal.pageSize.getWidth();
   const M = 48;
@@ -20,11 +20,11 @@ export function exportProposalPdf({ rollup, grand, project, client }) {
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(20);
-  doc.text("Plan Forge", M, 42);
+  doc.text(preparedBy || "Plan Forge", M, 42);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
   doc.setTextColor(180, 205, 235);
-  doc.text("Material takeoff estimate", M, 60);
+  doc.text(title || "Material takeoff proposal", M, 60);
   doc.setFontSize(9);
   doc.text(new Date().toLocaleDateString(), W - M, 42, { align: "right" });
 
@@ -95,6 +95,16 @@ export function exportProposalPdf({ rollup, grand, project, client }) {
       });
       yy = doc.lastAutoTable.finalY;
     });
+  }
+
+  // notes / terms
+  if (notes && notes.trim()) {
+    let ny = (doc.lastAutoTable?.finalY || 300) + 24;
+    if (ny > doc.internal.pageSize.getHeight() - 120) { doc.addPage(); ny = 60; }
+    doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.setTextColor(...NAVY);
+    doc.text("Notes & terms", M, ny);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(80, 80, 80);
+    doc.text(doc.splitTextToSize(notes.trim(), W - 2 * M), M, ny + 16);
   }
 
   // footer note

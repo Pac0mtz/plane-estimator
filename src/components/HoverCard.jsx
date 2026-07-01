@@ -1,8 +1,8 @@
-import { Check, Trash2, Sparkles, X } from "lucide-react";
+import { Check, Trash2, Sparkles, X, Ban, Undo2 } from "lucide-react";
 
 // Properties card for a detection or trace. Hovering shows it as a quick peek;
 // clicking the shape PINS it (solid, closeable) so you can use the buttons.
-export default function HoverCard({ kind, obj, sx, sy, wrapW, wrapH, layerName, qty, pinned, onKeep, onDismiss, onClose, onAccept, onDelete, onConfirm }) {
+export default function HoverCard({ kind, obj, sx, sy, wrapW, wrapH, layerName, qty, pinned, onKeep, onDismiss, onClose, onAccept, onDelete, onConfirm, onExclude }) {
   const isSug = kind === "suggestion";
   const title = isSug ? obj.element || obj.layerName : layerName;
   const color = isSug ? obj.color : undefined;
@@ -26,9 +26,13 @@ export default function HoverCard({ kind, obj, sx, sy, wrapW, wrapH, layerName, 
       </div>
       {isSug && <div className="text-slate-400">{layerName} layer</div>}
       {isSug && obj.note && <div className="text-slate-500 mt-0.5 leading-snug">{obj.note}</div>}
+      {!isSug && obj.excluded && <div className="text-amber-400 mt-0.5">Excluded from takeoff</div>}
 
       <div className="flex gap-1 mt-2">
         {onAccept && <button onClick={onAccept} className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded bg-emerald-700 hover:bg-emerald-600 text-white"><Check size={12} /> Accept</button>}
+        {onExclude && <button onClick={onExclude} title={obj.excluded ? "Include in takeoff" : "Exclude from takeoff"}
+          className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded ${obj.excluded ? "bg-emerald-700 hover:bg-emerald-600" : "bg-amber-700 hover:bg-amber-600"} text-white`}>
+          {obj.excluded ? <><Undo2 size={12} /> Include</> : <><Ban size={12} /> Exclude</>}</button>}
         {onDelete && <button onClick={onDelete} className="flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-slate-800 hover:bg-rose-900/60 text-slate-300"><Trash2 size={12} /></button>}
         <button onClick={onConfirm} title="Ask AI to review this" className="flex items-center justify-center gap-1 px-2 py-1.5 rounded bg-violet-700 hover:bg-violet-600 text-white"><Sparkles size={12} /> Review</button>
       </div>

@@ -4,6 +4,7 @@ import { useStore } from "../store/useStore.js";
 import { ASSEMBLIES } from "../lib/assemblies.js";
 import { traceQty, centroid, flatPts } from "../lib/geometry.js";
 import { runAssistant } from "../lib/planAssistant.js";
+import { Maximize } from "lucide-react";
 import HoverCard from "./HoverCard.jsx";
 import CanvasSearch from "./CanvasSearch.jsx";
 
@@ -42,6 +43,17 @@ export default function PlanCanvas() {
   }, [size.w, size.h, bg.w, bg.h]);
 
   useEffect(() => { fit(); }, [fit, bg.type, bg.href]);
+
+  // keyboard: F or 0 fits the page to the viewport
+  useEffect(() => {
+    const onKey = (e) => {
+      const el = document.activeElement;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      if ((e.key === "f" || e.key === "0") && !e.metaKey && !e.ctrlKey) { e.preventDefault(); fit(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [fit]);
 
   const activeColor = layers.find((l) => l.id === activeId)?.color || "#2f7fd1";
   const inv = 1 / view.scale; // keep strokes/text constant on screen
@@ -160,53 +172,74 @@ export default function PlanCanvas() {
         <Layer>
           {pageTraces.map((tr) => {
             const L = layers.find((l) => l.id === tr.layer);
-            if (!L || !L.visible) return null;
+            const isExZone = !tr.layer && tr.excluded; // standalone exclusion region
+            if (!isExZone && (!L || !L.visible)) return null;
             const sel = tr.id === selId;
             const hot = isHot(tr.id);
             const emph = sel || hot;
+            const excluded = tr.excluded;
+            const color = isExZone ? "#ef4444" : excluded ? "#94a3b8" : L.color;
             const pick = (e) => { if (tool === "select") { e.cancelBubble = true; s.setSel(tr.id); setPinned({ kind: "trace", obj: tr, ...screenPos(e) }); } };
             const hp = { onClick: pick, onTap: pick, listening: true, ...hoverProps("trace", tr) };
+            const dash = excluded ? [10 * inv, 6 * inv] : undefined;
+
+            const handles = sel && tool === "select" && tr.type !== "count" ? tr.pts.map((pt, vi) => (
+              <Circle key={"h" + vi} x={pt.x} y={pt.y} radius={6 * inv} fill="#fff" stroke={color} strokeWidth={2 * inv}
+                draggable onDragMove={(e) => { e.cancelBubble = true; const np = tr.pts.map((q, qi) => (qi === vi ? { x: e.target.x(), y: e.target.y() } : q)); s.updateTracePts(tr.id, np); }} />
+            )) : null;
 
             if (tr.type === "area") {
               const c = centroid(tr.pts);
+              const label = isExZone ? "EXCLUDED" : excluded ? "excluded" : `${traceQty(tr, ppf).toFixed(0)} SF`;
               return (
-                <Group key={tr.id} {...hp}>
-                  <Line points={flatPts(tr.pts)} closed fill={hexToRgba(L.color, emph ? 0.5 : 0.28)}
-                    stroke={hot ? "#fff" : L.color} strokeWidth={(emph ? 3 : 2) * inv} />
-                  <Label x={c.x} y={c.y} color={L.color} inv={inv} text={`${traceQty(tr, ppf).toFixed(0)} SF`} center />
+                <Group key={tr.id}>
+                  <Group {...hp}>
+                    <Line points={flatPts(tr.pts)} closed fill={hexToRgba(color, excluded ? 0.14 : emph ? 0.5 : 0.28)}
+                      stroke={hot ? "#fff" : color} strokeWidth={(emph ? 3 : 2) * inv} dash={dash} />
+                    <Label x={c.x} y={c.y} color={color} inv={inv} text={label} center />
+                  </Group>
+                  {handles}
                 </Group>
               );
             }
             if (tr.type === "linear") {
               const mid = tr.pts[Math.floor(tr.pts.length / 2)];
               return (
-                <Group key={tr.id} {...hp}>
-                  <Line points={flatPts(tr.pts)} stroke={hot ? "#fff" : L.color} strokeWidth={(emph ? 6 : 4) * inv}
-                    lineCap="round" lineJoin="round" hitStrokeWidth={14 * inv} />
-                  <Label x={mid.x} y={mid.y} color={L.color} inv={inv} text={`${traceQty(tr, ppf).toFixed(1)} LF`} />
+                <Group key={tr.id}>
+                  <Group {...hp}>
+                    <Line points={flatPts(tr.pts)} stroke={hot ? "#fff" : color} strokeWidth={(emph ? 6 : 4) * inv}
+                      lineCap="round" lineJoin="round" hitStrokeWidth={14 * inv} dash={dash} />
+                    <Label x={mid.x} y={mid.y} color={color} inv={inv} text={excluded ? "excluded" : `${traceQty(tr, ppf).toFixed(1)} LF`} />
+                  </Group>
+                  {handles}
                 </Group>
               );
             }
             const p = tr.pts[0];
             return (
-              <Circle key={tr.id} x={p.x} y={p.y} radius={(emph ? 9 : 7) * inv} fill={L.color}
-                stroke={hot ? "#fff" : "#fff"} strokeWidth={(hot ? 3 : 2) * inv} {...hp} />
+              <Circle key={tr.id} x={p.x} y={p.y} radius={(emph ? 9 : 7) * inv} fill={color}
+                stroke="#fff" strokeWidth={(hot ? 3 : 2) * inv}
+                draggable={sel && tool === "select"} onDragMove={(e) => s.updateTracePts(tr.id, [{ x: e.target.x(), y: e.target.y() }])} {...hp} />
             );
           })}
 
           {/* draft in progress */}
-          {draft.length > 0 && (
-            <Group listening={false}>
-              {ASSEMBLIES[layers.find((l) => l.id === activeId).asm].geom === "area" ? (
-                <Line points={flatPts(draft)} closed fill={hexToRgba(activeColor, 0.2)} stroke={activeColor} strokeWidth={2 * inv} dash={[6 * inv, 4 * inv]} />
-              ) : (
-                <Line points={flatPts(draft)} stroke={activeColor} strokeWidth={3 * inv} dash={[6 * inv, 4 * inv]} />
-              )}
-              {draft.map((p, i) => (
-                <Circle key={i} x={p.x} y={p.y} radius={4 * inv} fill="#fff" stroke={activeColor} strokeWidth={2 * inv} />
-              ))}
-            </Group>
-          )}
+          {draft.length > 0 && (() => {
+            const dc = tool === "exclude" ? "#ef4444" : activeColor;
+            const asArea = tool === "exclude" || ASSEMBLIES[layers.find((l) => l.id === activeId).asm].geom === "area";
+            return (
+              <Group listening={false}>
+                {asArea ? (
+                  <Line points={flatPts(draft)} closed fill={hexToRgba(dc, 0.2)} stroke={dc} strokeWidth={2 * inv} dash={[6 * inv, 4 * inv]} />
+                ) : (
+                  <Line points={flatPts(draft)} stroke={dc} strokeWidth={3 * inv} dash={[6 * inv, 4 * inv]} />
+                )}
+                {draft.map((p, i) => (
+                  <Circle key={i} x={p.x} y={p.y} radius={4 * inv} fill="#fff" stroke={dc} strokeWidth={2 * inv} />
+                ))}
+              </Group>
+            );
+          })()}
 
           {/* AI suggestions — ghost candidates. Hover to inspect, click to accept. */}
           {suggestions.map((sg) => {
@@ -289,6 +322,7 @@ export default function PlanCanvas() {
             onDismiss={() => setHovered(null)}
             onClose={clear}
             onAccept={card.kind === "suggestion" ? () => { s.acceptSuggestion(card.obj.id); clear(); } : null}
+            onExclude={card.kind === "trace" ? () => { s.toggleExclude(card.obj.id); clear(); } : null}
             onDelete={card.kind === "trace" ? () => { s.setSel(card.obj.id); s.deleteSel(); clear(); } : null}
             onConfirm={() => confirmDetection(card.kind === "suggestion" ? card.obj.element : layerName(card.obj.layer), card.kind === "suggestion" ? card.obj.layerName : layerName(card.obj.layer), qtyText(card.obj))}
           />
@@ -302,8 +336,10 @@ function ZoomControls({ onFit, onIn, onOut, pct }) {
   return (
     <div className="absolute bottom-3 left-3 z-30 flex items-center gap-1 rounded-lg bg-slate-900/90 border border-slate-700 p-1 shadow-lg">
       <button onClick={onOut} aria-label="Zoom out" className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-700 text-slate-200 text-lg leading-none">−</button>
-      <button onClick={onFit} aria-label="Fit to view" className="px-2 h-7 rounded hover:bg-slate-700 text-slate-300 text-xs tabular-nums min-w-[3rem]">{pct}%</button>
+      <button onClick={onFit} aria-label="Reset zoom" className="px-2 h-7 rounded hover:bg-slate-700 text-slate-300 text-xs tabular-nums min-w-[3rem]">{pct}%</button>
       <button onClick={onIn} aria-label="Zoom in" className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-700 text-slate-200 text-lg leading-none">+</button>
+      <div className="w-px h-5 bg-slate-700 mx-0.5" />
+      <button onClick={onFit} aria-label="Fit page to screen" title="Fit to screen (F)" className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-700 text-slate-200"><Maximize size={14} /></button>
     </div>
   );
 }

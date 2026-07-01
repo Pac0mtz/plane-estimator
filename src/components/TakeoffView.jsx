@@ -26,7 +26,7 @@ export default function TakeoffView() {
 
   const rollup = useMemo(() => {
     return layers.map((l) => {
-      const tl = traces.filter((t) => t.layer === l.id);
+      const tl = traces.filter((t) => t.layer === l.id && !t.excluded);
       const qty = tl.reduce((s, t) => s + traceQty(t, ppf), 0);
       const asm = priceBook[l.asm] || ASSEMBLIES[l.asm];
       const { materials, cost, bare } = explode(l.asm, qty, priceBook, bookMeta);

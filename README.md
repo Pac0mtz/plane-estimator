@@ -85,7 +85,13 @@ Or connect the repo in the Vercel dashboard — no config needed.
   Click vertices, then **Finish**. Or use **Rectangle** for quick two-corner areas, and **Measure**
   for a non-destructive ruler. On-canvas zoom controls, plus keyboard shortcuts (V/H/C/M/D/R,
   Esc, Enter). The toolbar and analysis panel both collapse to give the canvas more room.
-- **Select** — tap any shape to select, then **Delete selected**.
+- **Select & edit** — click any shape to select it (drag its vertices to reshape), or **Exclude**
+  it from the takeoff. The **Exclude area** tool (X) draws out-of-scope regions that never count.
+- **Fit to screen** — the ⤢ button (or `F` / `0`) fits the whole page in view.
+- **Proposal** — **Export** opens a proposal generator: pick line items, set title / prepared-by /
+  notes & terms, preview the total, and generate a branded PDF.
+- **Project trades** — when you create a project, pick which trades it includes so the layers are
+  scoped up front.
 - **Export** — CSV rollup (Trade → Assembly → Material → qty → cost). Same shape that feeds
   a Minnie Bird proposal line-item table.
 

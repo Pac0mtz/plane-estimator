@@ -24,8 +24,13 @@ const START_LAYERS = [
 ];
 
 // The takeoff data that belongs to a project (persistable; images excluded).
-const freshTakeoff = () => ({
-  layers: START_LAYERS.map((l) => ({ ...l })),
+// `trades` (assembly keys) lets the estimator scope which layers a project
+// starts with; falls back to the default trade set.
+const freshTakeoff = (trades) => ({
+  layers:
+    trades && trades.length
+      ? trades.map((asm, i) => ({ id: "l" + i + Math.random().toString(36).slice(2, 6), name: (ASSEMBLIES[asm]?.name || asm), color: PALETTE[i % PALETTE.length], asm, visible: true }))
+      : START_LAYERS.map((l) => ({ ...l })),
   traces: [],
   ppf: DEMO.ppf,
   ppfNote: "demo scale",
@@ -76,9 +81,10 @@ export const useStore = create(
           status: "active",
           createdAt: now(),
           updatedAt: now(),
-          takeoff: freshTakeoff(),
+          takeoff: freshTakeoff(data.trades),
           ...data,
         };
+        delete p.trades;
         set((s) => ({ projects: [...s.projects, p] }));
         return p.id;
       },
@@ -243,6 +249,7 @@ export const useStore = create(
           set({ calib: s.calib.length >= 2 ? [p] : [...s.calib, p] });
           return;
         }
+        if (s.tool === "exclude") { set({ draft: [...s.draft, p] }); return; }
         if (s.tool === "rect") {
           if (!s.draft.length) { set({ draft: [p] }); return; }
           const a = s.draft[0];
@@ -262,6 +269,11 @@ export const useStore = create(
 
       finishDraft: () =>
         set((s) => {
+          if (s.tool === "exclude") {
+            if (s.draft.length >= 3)
+              return { traces: [...s.traces, { id: uid(), layer: null, page: s.activePage, type: "area", excluded: true, pts: s.draft }], draft: [] };
+            return { draft: [] };
+          }
           const g = ASSEMBLIES[s.layers.find((l) => l.id === s.activeId).asm].geom;
           const base = { id: uid(), layer: s.activeId, page: s.activePage };
           if (g === "area" && s.draft.length >= 3)
@@ -270,6 +282,13 @@ export const useStore = create(
             return { traces: [...s.traces, { ...base, type: "linear", pts: s.draft }], draft: [] };
           return { draft: [] };
         }),
+
+      // mark a trace in/out of scope (excluded traces never count in the rollup)
+      toggleExclude: (id) =>
+        set((s) => ({ traces: s.traces.map((t) => (t.id === id ? { ...t, excluded: !t.excluded } : t)) })),
+      // move a trace's vertices (edit detected areas)
+      updateTracePts: (id, pts) =>
+        set((s) => ({ traces: s.traces.map((t) => (t.id === id ? { ...t, pts } : t)) })),
 
       deleteSel: () => set((s) => ({ traces: s.traces.filter((t) => t.id !== s.selId), selId: null })),
 

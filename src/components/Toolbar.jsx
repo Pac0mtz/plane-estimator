@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import {
-  MousePointer2, Hand, Ruler, Square, Minus, Hash, Undo2, Check, Trash2, X, RectangleHorizontal, MoveDiagonal, ScanLine, Loader2,
+  MousePointer2, Hand, Ruler, Square, Minus, Hash, Undo2, Check, Trash2, X, RectangleHorizontal, MoveDiagonal, ScanLine, Loader2, Ban,
 } from "lucide-react";
 import { useStore } from "../store/useStore.js";
 import { geomLabel } from "../lib/assemblies.js";
@@ -44,7 +44,7 @@ export default function Toolbar() {
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const k = e.key.toLowerCase();
-      const map = { v: "select", h: "pan", c: "calibrate", d: "draw", r: "rect", m: "measure" };
+      const map = { v: "select", h: "pan", c: "calibrate", d: "draw", r: "rect", m: "measure", x: "exclude" };
       if (map[k]) { e.preventDefault(); s.setTool(map[k]); }
       else if (e.key === "Escape") s.setTool("select");
       else if (e.key === "Enter" && s.tool === "draw") s.finishDraft();
@@ -73,13 +73,15 @@ export default function Toolbar() {
       <Label>Draw</Label>
       <Btn ic={geomIcon} label={geomLabel[geom]} hotkey="d" on={s.tool === "draw"} accent onClick={() => s.setTool("draw")} />
       <Btn ic={<RectangleHorizontal size={15} />} label="Rectangle" hotkey="r" disabled={geom !== "area"} on={s.tool === "rect"} onClick={() => s.setTool("rect")} />
+      <Btn ic={<Ban size={15} />} label="Exclude area" hotkey="x" on={s.tool === "exclude"} onClick={() => s.setTool("exclude")} />
 
-      {s.tool === "draw" && geom !== "count" && (
+      {((s.tool === "draw" && geom !== "count") || s.tool === "exclude") && (
         <div className="flex gap-1.5">
           <button onClick={s.undoPoint} aria-label="Undo last point" className="flex-1 flex items-center justify-center gap-1 text-xs py-1.5 rounded bg-slate-800 hover:bg-slate-700"><Undo2 size={13} />Undo</button>
           <button onClick={s.finishDraft} aria-label="Finish shape" className="flex-1 flex items-center justify-center gap-1 text-xs py-1.5 rounded bg-emerald-700 hover:bg-emerald-600"><Check size={13} />Finish</button>
         </div>
       )}
+      {s.tool === "exclude" && <div className="text-[10px] text-slate-500 px-1">Draw an area to leave OUT of the takeoff, then Finish.</div>}
       {s.tool === "rect" && <div className="text-[10px] text-slate-500 px-1">Click two opposite corners.</div>}
       {s.tool === "measure" && <div className="text-[10px] text-slate-500 px-1">Click two points to measure. {!s.ppf && "Calibrate first for feet."}</div>}
       {s.tool === "calibrate" && <Calibrator />}

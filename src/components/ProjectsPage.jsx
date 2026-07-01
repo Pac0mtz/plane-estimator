@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { Plus, FolderKanban, Pencil, Trash2, ArrowRight, X, Building2 } from "lucide-react";
 import { useStore } from "../store/useStore.js";
+import { ASSEMBLIES } from "../lib/assemblies.js";
+
+// trades offered when scoping a new project (assembly keys from the price book)
+const TRADE_OPTIONS = ["slab", "footing", "brick", "cmu", "eifs", "roofing", "drywall", "storefront", "doors", "act", "paint", "flooring", "lighting", "device", "fixtures", "rtu"];
+const DEFAULT_TRADES = ["brick", "eifs", "drywall", "slab", "doors"];
 
 const STATUSES = ["active", "bidding", "won", "archived"];
 const statusTone = {
@@ -93,7 +98,9 @@ function ProjectForm({ project, clients, onCancel, onSave }) {
     address: project.address || "",
     status: project.status || "active",
   });
+  const [trades, setTrades] = useState(DEFAULT_TRADES);
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
+  const toggleTrade = (t) => setTrades((ts) => (ts.includes(t) ? ts.filter((x) => x !== t) : [...ts, t]));
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-6" onClick={onCancel}>
@@ -121,10 +128,23 @@ function ProjectForm({ project, clients, onCancel, onSave }) {
               {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </Field>
+          {!project.id && (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs text-slate-400">Trades to include <span className="text-slate-600">({trades.length})</span></span>
+              <div className="grid grid-cols-2 gap-1 max-h-44 overflow-y-auto pr-1">
+                {TRADE_OPTIONS.map((t) => (
+                  <label key={t} className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded cursor-pointer ${trades.includes(t) ? "bg-slate-800 text-slate-100" : "bg-slate-950 text-slate-400 hover:bg-slate-800"}`}>
+                    <input type="checkbox" checked={trades.includes(t)} onChange={() => toggleTrade(t)} className="accent-brand" />
+                    <span className="truncate">{ASSEMBLIES[t]?.name || t}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <div className="flex justify-end gap-2 mt-4">
           <button onClick={onCancel} className="text-sm px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700">Cancel</button>
-          <button onClick={() => onSave({ ...f, name: f.name.trim() || "Untitled project", clientId: f.clientId || null })}
+          <button onClick={() => onSave({ ...f, name: f.name.trim() || "Untitled project", clientId: f.clientId || null, ...(project.id ? {} : { trades }) })}
             className="text-sm px-3 py-1.5 rounded bg-brand hover:bg-brand2 font-medium">Save</button>
         </div>
       </div>
