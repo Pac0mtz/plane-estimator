@@ -323,6 +323,26 @@ export const useStore = create(
           };
         }),
 
+      // create layers for a set of assembly keys (from the import trade picker),
+      // skipping any that already have a layer. Returns count added.
+      addLayersForAsms: (asms) => {
+        let added = 0;
+        set((s) => {
+          const layers = [...s.layers];
+          const used = new Set(layers.map((l) => l.color));
+          for (const asm of asms) {
+            const def = s.priceBook[asm] || ASSEMBLIES[asm];
+            if (!def || layers.some((l) => l.asm === asm)) continue;
+            const color = PALETTE.find((c) => !used.has(c)) || PALETTE[layers.length % PALETTE.length];
+            used.add(color);
+            layers.push({ id: "l" + uid(), name: def.name, color, asm, visible: true });
+            added++;
+          }
+          return { layers };
+        });
+        return added;
+      },
+
       // AI detect -> ensure a layer per detected assembly (create if missing),
       // then build the suggestions that reference those layers.
       ingestDetections: (dets) =>

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Sparkles, Send, Loader2, X, FileText, Trash2, ClipboardList, Hammer } from "lucide-react";
+import { Sparkles, Send, Loader2, X, FileText, Trash2, ClipboardList, Hammer, Layers2 } from "lucide-react";
 import { useStore } from "../store/useStore.js";
 import { renderPage } from "../lib/pdf.js";
 import { askAssistant, QUICK_ACTIONS } from "../lib/planAssistant.js";
@@ -99,8 +99,19 @@ export default function AssistantPanel({ onClose }) {
   );
 }
 
-// Pinned card summarizing the plan set + trades detected on import.
+// Pinned card summarizing the plan set + trades detected on import. Detected
+// trades can be selected and turned into takeoff layers (skip the ones you
+// don't want to bid).
 function PlanOverview({ data, knownNos, onJump }) {
+  const layers = useStore((s) => s.layers);
+  const addLayersForAsms = useStore((s) => s.addLayersForAsms);
+  const withAsm = (data.trades || []).filter((t) => t.asm);
+  const [sel, setSel] = useState(null);
+  const [added, setAdded] = useState(0);
+  const chosen = sel ?? new Set(withAsm.filter((t) => !layers.some((l) => l.asm === t.asm)).map((t) => t.asm));
+  const toggle = (asm) => { const n = new Set(chosen); n.has(asm) ? n.delete(asm) : n.add(asm); setSel(n); };
+  const apply = () => { const n = addLayersForAsms([...chosen]); setAdded(n); };
+
   return (
     <div className="rounded-lg border border-violet-900/60 bg-violet-950/20 overflow-hidden">
       <div className="flex items-center gap-1.5 px-3 py-2 bg-violet-950/40 text-violet-200 text-xs font-semibold">
@@ -115,27 +126,43 @@ function PlanOverview({ data, knownNos, onJump }) {
           <>
             <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
               <Hammer size={12} /> Trades detected · {data.trades.length}
+              <span className="ml-auto font-normal normal-case text-slate-500">check to include</span>
             </div>
             <div className="flex flex-col gap-2">
-              {data.trades.map((t, i) => (
-                <div key={i} className="rounded bg-slate-900/70 border border-slate-800 p-2">
-                  <div className="text-slate-100 font-medium text-[13px]">{t.trade}</div>
-                  {t.scope && <div className="text-slate-400 text-[11px] mb-1">{t.scope}</div>}
-                  <div className="flex flex-wrap gap-1">
-                    {(t.sheets || []).map((no) => {
-                      const up = String(no).toUpperCase();
-                      const known = knownNos.has(up);
-                      return (
-                        <button key={no} disabled={!known} onClick={() => onJump(up)}
-                          className={`text-[10px] px-1.5 py-0.5 rounded ${known ? "bg-violet-900/50 text-violet-200 hover:bg-violet-800/60" : "bg-slate-800 text-slate-500"}`}>
-                          {up}
-                        </button>
-                      );
-                    })}
+              {data.trades.map((t, i) => {
+                const has = t.asm && layers.some((l) => l.asm === t.asm);
+                return (
+                  <div key={i} className="rounded bg-slate-900/70 border border-slate-800 p-2">
+                    <div className="flex items-center gap-2">
+                      {t.asm ? (
+                        <input type="checkbox" checked={has || chosen.has(t.asm)} disabled={has} onChange={() => toggle(t.asm)} className="accent-violet-500" />
+                      ) : <span className="w-3.5" />}
+                      <div className="text-slate-100 font-medium text-[13px] flex-1">{t.trade}</div>
+                      {has && <span className="text-[9px] px-1 rounded bg-emerald-900/50 text-emerald-300">layer ✓</span>}
+                    </div>
+                    {t.scope && <div className="text-slate-400 text-[11px] mb-1 ml-6">{t.scope}</div>}
+                    <div className="flex flex-wrap gap-1 ml-6">
+                      {(t.sheets || []).map((no) => {
+                        const up = String(no).toUpperCase();
+                        const known = knownNos.has(up);
+                        return (
+                          <button key={no} disabled={!known} onClick={() => onJump(up)}
+                            className={`text-[10px] px-1.5 py-0.5 rounded ${known ? "bg-violet-900/50 text-violet-200 hover:bg-violet-800/60" : "bg-slate-800 text-slate-500"}`}>
+                            {up}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
+            {withAsm.length > 0 && (
+              <button onClick={apply} disabled={chosen.size === 0}
+                className="mt-2.5 w-full flex items-center justify-center gap-1.5 text-xs py-2 rounded bg-violet-700 hover:bg-violet-600 disabled:opacity-40 text-white font-medium">
+                <Layers2 size={13} /> {added ? `Added ${added} layer${added === 1 ? "" : "s"}` : `Add ${chosen.size} selected trade${chosen.size === 1 ? "" : "s"} as layers`}
+              </button>
+            )}
           </>
         )}
       </div>

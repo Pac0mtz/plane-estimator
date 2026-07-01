@@ -46,8 +46,9 @@ export async function generatePlanSummary({ sheetIndex = [], pagesText = [] }) {
 
   const sys = `You are a construction estimator's assistant analyzing a drawing set. Return STRICT JSON only:
 { "summary": "2-4 sentence overview: building type, size, and scope of work",
-  "trades": [ { "trade": "estimator trade name", "sheets": ["A101","S101"], "scope": "one short line" } ] }
-Detect EVERY trade actually represented in the sheet index / text — e.g. Sitework, Concrete, Masonry, Thin brick / veneer, EIFS, Structural steel, Rough carpentry, Drywall & framing, Roofing, Doors & hardware, Storefront / glazing, Finishes, FF&E, Fire protection, Plumbing, HVAC, Electrical. Do not invent trades that aren't in the set. Cite the specific sheets for each trade.`;
+  "trades": [ { "trade": "estimator trade name", "asm": "best-match key or null", "sheets": ["A101","S101"], "scope": "one short line" } ] }
+Detect EVERY trade actually represented in the sheet index / text — e.g. Sitework, Concrete, Masonry, Thin brick / veneer, EIFS, Structural steel, Rough carpentry, Drywall & framing, Roofing, Doors & hardware, Storefront / glazing, Finishes, FF&E, Fire protection, Plumbing, HVAC, Electrical. Do not invent trades that aren't in the set. Cite the specific sheets for each trade.
+For "asm", pick the single best matching takeoff assembly key from this list (or null if none fits): slab, footing, foundwall, brick, cmu, joists, eifs, roofing, doors, storefront, drywall, paint, act, flooring, fixtures, rtu, lighting, device.`;
 
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
