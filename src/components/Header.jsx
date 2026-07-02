@@ -1,8 +1,6 @@
-import { Upload, Download, RotateCcw, Loader2, MessageSquareText, Ruler, ScanLine } from "lucide-react";
+import { Upload, Download, RotateCcw, Loader2, MessageSquareText, Ruler } from "lucide-react";
 import { useStore } from "../store/useStore.js";
 import { useRef, useState } from "react";
-import { extractPageVectors, extractPageText } from "../lib/pdf.js";
-import { detectRuns } from "../lib/detectRuns.js";
 import { importPlanFile, ACCEPT } from "../lib/importPlan.js";
 
 // One header button. Label collapses to icon-only below `show` breakpoint.
@@ -38,25 +36,6 @@ export default function Header({ onExport, projectName, assistantOpen, onToggleA
     setBusy(false);
   };
 
-  // Detect walls/regions from the plan's REAL vector geometry (no vision).
-  const runDetect = async () => {
-    if (s.bg.type !== "img") { s.setAiError("Open an uploaded PDF page first."); return; }
-    s.setAiBusy(true);
-    try {
-      const polylines = s.vectors[s.activePage] || (await extractPageVectors(s.activePage)).polylines;
-      if (!s.vectors[s.activePage]) s.setVectors(s.activePage, polylines);
-      const { items } = await extractPageText(s.activePage); // read the sheet's text so note/legend boxes aren't called slabs
-      const { regions, runs } = detectRuns(polylines, s.bg, { dimSamples: s.dims?.samples || [], textItems: items });
-      if (!regions.length && !runs.length) {
-        s.setAiError("No vector geometry found here (scanned/image page). Use Measure wall or trace manually.");
-        return;
-      }
-      s.ingestVectorRuns({ regions, runs });
-    } catch (err) {
-      s.setAiError(err.message);
-    }
-  };
-
   return (
     <header className="flex items-center gap-2 px-3 h-12 border-b border-slate-800 bg-slate-950 text-slate-100 shrink-0">
       {/* project + status */}
@@ -71,12 +50,11 @@ export default function Header({ onExport, projectName, assistantOpen, onToggleA
 
       <div className="flex-1" />
 
-      {/* AI cluster */}
+      {/* AI cluster — the assistant reads schedules/trades (reliable). Takeoff
+          is done with Read dimensions + Measure wall in the toolbar. */}
       <div className="flex items-center gap-1.5">
         <HBtn icon={MessageSquareText} label="Assistant" tone="violet" on={assistantOpen} onClick={onToggleAssistant}
-          title="Ask the AI plan assistant" />
-        <HBtn icon={ScanLine} label={s.aiBusy ? "Detecting…" : "Detect walls"} tone="aiprimary" disabled={s.aiBusy} spin={s.aiBusy}
-          onClick={runDetect} title="Detect walls, runs and regions from the plan's real vector geometry (no vision guessing)" />
+          title="Ask the AI plan assistant — summarize sheets, list trades, read schedules" />
       </div>
 
       <div className="h-6 w-px bg-slate-800 mx-1 hidden sm:block" />

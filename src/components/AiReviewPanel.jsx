@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Sparkles, Check, X, CheckCheck, KeyRound, AlertTriangle } from "lucide-react";
+import { Sparkles, Check, X, CheckCheck, KeyRound, AlertTriangle, Ruler } from "lucide-react";
 import { useStore } from "../store/useStore.js";
 import { ASSEMBLIES } from "../lib/assemblies.js";
 import { hasKey, setKey } from "../lib/aiDetect.js";
@@ -19,20 +19,17 @@ export default function AiReviewPanel() {
   const isVector = suggestions.some((s) => s.vector);
   const scheduleTrades = planSummary?.trades?.length ? planSummary.trades : null;
   if (!hasSuggestions && !aiError && !showKey) {
-    // compact affordance to configure the key / explain demo mode
+    // takeoff guide — the reliable, vision-free workflow
     return (
       <div className="px-3 pt-3">
-        <div className="rounded bg-slate-900 border border-slate-800 p-2.5 text-[11px] text-slate-400">
-          <div className="flex items-center gap-1.5 text-violet-300 font-semibold mb-1">
-            <Sparkles size={13} /> AI pre-seed
+        <div className="rounded bg-slate-900 border border-slate-800 p-2.5 text-[11px] text-slate-400 space-y-1.5">
+          <div className="flex items-center gap-1.5 text-slate-200 font-semibold">
+            <Ruler size={13} className="text-brand" /> Take off from real geometry
           </div>
-          {hasKey() ? (
-            <>OpenAI vision connected. Hit <b className="text-slate-200">AI detect</b> to suggest traces on this page.{" "}
-              <button onClick={() => setShowKey(true)} className="text-violet-300 underline">change key</button></>
-          ) : (
-            <>Running in <b className="text-slate-200">demo detection</b> mode. Hit <b className="text-slate-200">AI detect</b> to preview,
-              or <button onClick={() => setShowKey(true)} className="text-violet-300 underline">add an OpenAI key</button> for real vision.</>
-          )}
+          <div><b className="text-slate-300">1. Read dimensions</b> — sets exact scale from the plan's printed dimensions.</div>
+          <div><b className="text-slate-300">2. Measure wall</b> — hover any wall/line for its exact length; click to add it to a layer.</div>
+          <div className="text-slate-500">The <b className="text-slate-400">Assistant</b> reads schedules &amp; trades from the sheet.{" "}
+            <button onClick={() => setShowKey(true)} className="text-violet-300 underline">{hasKey() ? "change key" : "add OpenAI key"}</button></div>
         </div>
       </div>
     );

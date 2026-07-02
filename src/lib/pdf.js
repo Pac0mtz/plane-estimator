@@ -187,6 +187,14 @@ export async function extractPageVectors(index) {
       layers = [...new Set(raw.map((p) => p.layerName).filter(Boolean))];
     }
     polylines = usefulPolylines(raw);
+    // drop geometry drawn outside the sheet (off-page viewports/artifacts) so
+    // nothing can snap or measure off the page
+    const W = vp.width, H = vp.height;
+    polylines = polylines.filter((p) => {
+      const cx = p.pts.reduce((a, q) => a + q.x, 0) / p.pts.length;
+      const cy = p.pts.reduce((a, q) => a + q.y, 0) / p.pts.length;
+      return cx >= -0.02 * W && cx <= 1.02 * W && cy >= -0.02 * H && cy <= 1.02 * H;
+    });
   } catch { /* no vector content */ }
   page.cleanup();
   return { polylines, w: Math.round(vp.width), h: Math.round(vp.height), layers };
