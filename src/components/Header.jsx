@@ -1,7 +1,7 @@
 import { Upload, Download, RotateCcw, Loader2, MessageSquareText, Ruler, ScanLine } from "lucide-react";
 import { useStore } from "../store/useStore.js";
 import { useRef, useState } from "react";
-import { extractPageVectors } from "../lib/pdf.js";
+import { extractPageVectors, extractPageText } from "../lib/pdf.js";
 import { detectRuns } from "../lib/detectRuns.js";
 import { importPlanFile, ACCEPT } from "../lib/importPlan.js";
 
@@ -45,7 +45,8 @@ export default function Header({ onExport, projectName, assistantOpen, onToggleA
     try {
       const polylines = s.vectors[s.activePage] || (await extractPageVectors(s.activePage)).polylines;
       if (!s.vectors[s.activePage]) s.setVectors(s.activePage, polylines);
-      const { regions, runs } = detectRuns(polylines, s.bg, { dimSamples: s.dims?.samples || [] });
+      const { items } = await extractPageText(s.activePage); // read the sheet's text so note/legend boxes aren't called slabs
+      const { regions, runs } = detectRuns(polylines, s.bg, { dimSamples: s.dims?.samples || [], textItems: items });
       if (!regions.length && !runs.length) {
         s.setAiError("No vector geometry found here (scanned/image page). Use Measure wall or trace manually.");
         return;

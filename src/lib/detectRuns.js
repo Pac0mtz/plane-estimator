@@ -23,12 +23,23 @@ function annotate(p) {
     area2 += a.x * b.y - b.x * a.y;
   }
   const bw = maxX - minX, bh = maxY - minY;
-  return { pts, closed: p.closed, len, area: Math.abs(area2) / 2, bw, bh, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 };
+  return { pts, closed: p.closed, len, area: Math.abs(area2) / 2, bw, bh, minX, minY, maxX, maxY, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 };
+}
+
+// how many text tokens sit inside a shape's bounding box — an annotation box
+// (notes, legend, schedule, title block) is packed with text; a real slab is
+// nearly empty inside.
+function textInside(box, textItems) {
+  let n = 0;
+  for (const t of textItems) {
+    if (t.x >= box.minX && t.x <= box.maxX && t.y >= box.minY && t.y <= box.maxY) n++;
+  }
+  return n;
 }
 
 // dimSamples (optional): positions of parsed dimension strings — used to drop
 // dimension lines (a run whose midpoint hugs a dimension label isn't a wall).
-export function detectRuns(polys, bg, { dimSamples = [], maxRegions = 6, maxRuns = 12 } = {}) {
+export function detectRuns(polys, bg, { dimSamples = [], textItems = [], textMax = 6, maxRegions = 6, maxRuns = 12 } = {}) {
   if (!polys || !polys.length) return { regions: [], runs: [] };
   const pageArea = bg.w * bg.h;
   const ann = polys.map(annotate)
@@ -47,6 +58,10 @@ export function detectRuns(polys, bg, { dimSamples = [], maxRegions = 6, maxRuns
 
   const regions = kept
     .filter((a) => a.closed && a.area > 0.004 * pageArea)
+    // a real slab/footprint is nearly empty inside; a note/legend/schedule/
+    // title box is packed with text — drop the text-dense ones so we stop
+    // calling note boxes "slab".
+    .filter((a) => textInside(a, textItems) < textMax)
     .sort((a, b) => b.area - a.area)
     .slice(0, maxRegions);
   const regionSet = new Set(regions);
