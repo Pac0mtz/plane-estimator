@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import {
-  MousePointer2, Hand, Ruler, Square, Minus, Hash, Undo2, Check, Trash2, X, RectangleHorizontal, MoveDiagonal, ScanLine, Loader2, Ban,
+  MousePointer2, Hand, Ruler, Square, Minus, Hash, Undo2, Check, Trash2, X, RectangleHorizontal, MoveDiagonal, ScanLine, Loader2, Ban, Magnet,
 } from "lucide-react";
 import { useStore } from "../store/useStore.js";
 import { geomLabel } from "../lib/assemblies.js";
@@ -54,7 +54,7 @@ export default function Toolbar() {
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const k = e.key.toLowerCase();
-      const map = { v: "select", h: "pan", c: "calibrate", d: "draw", r: "rect", m: "measure", x: "exclude" };
+      const map = { v: "select", h: "pan", c: "calibrate", d: "draw", r: "rect", m: "measure", x: "exclude", s: "snap" };
       if (map[k]) { e.preventDefault(); s.setTool(map[k]); }
       else if (e.key === "Escape") s.setTool("select");
       else if (e.key === "Enter" && s.tool === "draw") s.finishDraft();
@@ -84,6 +84,16 @@ export default function Toolbar() {
       <Btn ic={geomIcon} label={geomLabel[geom]} hotkey="d" on={s.tool === "draw"} accent onClick={() => s.setTool("draw")} />
       <Btn ic={<RectangleHorizontal size={15} />} label="Rectangle" hotkey="r" disabled={geom !== "area"} on={s.tool === "rect"} onClick={() => s.setTool("rect")} />
       <Btn ic={<Ban size={15} />} label="Exclude area" hotkey="x" on={s.tool === "exclude"} onClick={() => s.setTool("exclude")} />
+
+      <Label>Snap (vector plans)</Label>
+      <Btn ic={<Magnet size={15} />} label="Snap line" hotkey="s" accent on={s.tool === "snap"} onClick={() => s.setTool("snap")} />
+      {s.tool === "snap" && (
+        <div className="text-[10px] text-slate-500 px-1 leading-snug">
+          {s.vectorsBusy ? "Reading real geometry…" : (s.vectors[s.activePage]?.length
+            ? <>Hover a real line — it highlights. Click to trace it exactly onto <b className="text-slate-300">{s.activeLayer()?.name}</b>.</>
+            : "No vector geometry on this sheet (scanned or image). Trace manually instead.")}
+        </div>
+      )}
 
       {((s.tool === "draw" && geom !== "count") || s.tool === "exclude") && (
         <div className="flex gap-1.5">

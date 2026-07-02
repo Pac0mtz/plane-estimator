@@ -230,6 +230,22 @@ export const useStore = create(
       aiBusy: false,
       aiError: null,
 
+      // real vector geometry pulled from the PDF (page index -> polylines).
+      // Powers the snap-to-line tool. Ephemeral (re-extracted per session).
+      vectors: {},
+      vectorsBusy: false,
+      setVectors: (page, polylines) => set((s) => ({ vectors: { ...s.vectors, [page]: polylines }, vectorsBusy: false })),
+      setVectorsBusy: (vectorsBusy) => set({ vectorsBusy }),
+
+      // click a real line -> create a linear trace snapped to that exact
+      // geometry on the active layer, so it prices out with precise LF.
+      addSnappedTrace: (pts) =>
+        set((s) => {
+          if (!pts || pts.length < 2) return {};
+          const clamped = pts.map((p) => ({ x: Math.max(0, Math.min(s.bg.w, p.x)), y: Math.max(0, Math.min(s.bg.h, p.y)) }));
+          return { traces: [...s.traces, { id: uid(), layer: s.activeId, page: s.activePage, type: "linear", pts: clamped, snapped: true }] };
+        }),
+
       setTool: (tool) => set({ tool, draft: [], calib: [], measure: null }),
       setActive: (activeId) => set({ activeId, draft: [] }),
       setSel: (selId) => set({ selId }),

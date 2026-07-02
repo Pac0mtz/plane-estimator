@@ -5,6 +5,8 @@ import { ASSEMBLIES } from "../lib/assemblies.js";
 import { traceQty, centroid, flatPts } from "../lib/geometry.js";
 import { runAssistant } from "../lib/planAssistant.js";
 import { importPlanFile, ACCEPT } from "../lib/importPlan.js";
+import { extractPageVectors } from "../lib/pdf.js";
+import { nearestPolyline, polylineLengthPx } from "../lib/vector.js";
 import { Maximize, UploadCloud, Eye, EyeOff } from "lucide-react";
 import HoverCard from "./HoverCard.jsx";
 import CanvasSearch from "./CanvasSearch.jsx";
@@ -40,6 +42,21 @@ export default function PlanCanvas() {
   const [view, setView] = useState({ scale: 1, x: 0, y: 0 });
   const [hover, setHover] = useState(null); // world-space cursor for rubber-band previews
   const [labelsOn, setLabelsOn] = useState(true); // show all quantity/AI chips vs. keep the sheet clean
+  const [snapHit, setSnapHit] = useState(null); // vector polyline currently under the cursor (snap tool)
+  const pageVectors = s.vectors[activePage] || null;
+
+  // Snap tool: pull the page's real vector geometry once, lazily. Only for
+  // vector PDFs (image bg) — scanned pages come back empty.
+  useEffect(() => {
+    if (tool !== "snap" || bg.type !== "img" || pageVectors) return;
+    let cancelled = false;
+    s.setVectorsBusy(true);
+    extractPageVectors(activePage)
+      .then(({ polylines }) => { if (!cancelled) s.setVectors(activePage, polylines); })
+      .catch(() => { if (!cancelled) s.setVectors(activePage, []); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tool, bg.type, activePage, pageVectors]);
 
   // measure container — a ResizeObserver catches layout changes (collapsing a
   // side panel, toggling the sidebar) that don't fire a window resize event,
@@ -97,6 +114,15 @@ export default function PlanCanvas() {
       if (e.target === e.target.getStage()) { s.setSel(null); setPinned(null); }
       return;
     }
+    // snap tool: a click drops a linear trace matching the exact vector line
+    if (tool === "snap") {
+      if (snapHit) {
+        s.addSnappedTrace(snapHit.pts);
+        const c = centroid(snapHit.pts);
+        setFlash(c); setTimeout(() => setFlash(null), 1200);
+      }
+      return;
+    }
     const p = stageRef.current.getRelativePointerPosition();
     s.addPoint({ x: p.x, y: p.y });
   };
@@ -107,6 +133,11 @@ export default function PlanCanvas() {
 
   const needsHover = (tool === "rect" && draft.length) || (tool === "measure" && measure && !measure.b) || (tool === "calibrate" && calib.length === 1);
   const onMove = () => {
+    if (tool === "snap") {
+      const p = stageRef.current.getRelativePointerPosition();
+      setSnapHit(nearestPolyline(pageVectors || [], p, 12 * inv) || null);
+      return;
+    }
     if (!needsHover) { if (hover) setHover(null); return; }
     const p = stageRef.current.getRelativePointerPosition();
     setHover({ x: p.x, y: p.y });
@@ -307,6 +338,23 @@ export default function PlanCanvas() {
               </Group>
             );
           })}
+
+          {/* real vector geometry (snap tool) — the plan's actual lines, faint,
+              with the one under the cursor lit up + its exact length */}
+          {tool === "snap" && (pageVectors || []).map((poly) => {
+            const on = snapHit?.id === poly.id;
+            return (
+              <Line key={poly.id} points={flatPts(poly.pts)} closed={poly.closed}
+                stroke={on ? "#22d3ee" : "#38bdf8"} strokeWidth={(on ? 3 : 0.6) * inv}
+                opacity={on ? 1 : 0.3} listening={false} lineCap="round" lineJoin="round" />
+            );
+          })}
+          {tool === "snap" && snapHit && (() => {
+            const mid = snapHit.pts[Math.floor(snapHit.pts.length / 2)];
+            const lenPx = snapHit.lenPx || polylineLengthPx(snapHit.pts);
+            const txt = ppf ? `${(lenPx / ppf).toFixed(1)} ft` : `${Math.round(lenPx)} px · set scale`;
+            return <Chip x={mid.x} y={mid.y} color="#0891b2" inv={inv} text={txt} center />;
+          })()}
 
           {/* search-hit flash marker */}
           {flash && (

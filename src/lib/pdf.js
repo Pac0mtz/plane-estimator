@@ -17,6 +17,7 @@
 import * as pdfjs from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { parseSheetIndex, detectSheet, guessSheetNo, disciplineOf } from "./planIndex.js";
+import { opListToPolylines, usefulPolylines } from "./vector.js";
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -163,6 +164,23 @@ export async function renderPageRegion(index, { scale = 1 } = {}) {
   const href = await canvasToObjectUrl(canvas);
   page.cleanup();
   return { href, w: canvas.width, h: canvas.height, img: await decode(href) };
+}
+
+// Extract the page's real vector geometry as polylines in the SAME pixel space
+// the plan image renders at (so they overlay exactly). Returns [] for scanned
+// pages (no vector content). Used by the snap-to-line takeoff tool.
+export async function extractPageVectors(index) {
+  if (!_doc) return { polylines: [], w: 0, h: 0 };
+  const page = await _doc.getPage(index + 1);
+  const base = page.getViewport({ scale: 1 });
+  const vp = page.getViewport({ scale: scaleForPage(base) });
+  let polylines = [];
+  try {
+    const opList = await page.getOperatorList();
+    polylines = usefulPolylines(opListToPolylines(opList, vp.transform));
+  } catch { /* no vector content */ }
+  page.cleanup();
+  return { polylines, w: Math.round(vp.width), h: Math.round(vp.height) };
 }
 
 export function closePdf() {
