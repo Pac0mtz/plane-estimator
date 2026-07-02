@@ -34,11 +34,15 @@ export function opListToPolylines(opList, viewportTransform) {
   const stack = [];
   let pending = []; // device-space subpaths built for the current path
   let cur = null;
+  // marked-content stack tracks the active optional-content group (CAD layer):
+  // /OC /OCx BDC … EMC. curLayer() is the layer id the current path belongs to.
+  const mc = [];
+  const curLayer = () => (mc.length ? mc[mc.length - 1] : null);
 
   const dev = (x, y) => { const p = Util.applyTransform([x, y], ctm); return { x: p[0], y: p[1] }; };
   const startSub = (x, y) => { cur = { pts: [dev(x, y)], closed: false }; pending.push(cur); };
   const lineTo = (x, y) => { if (!cur) startSub(x, y); else cur.pts.push(dev(x, y)); };
-  const flush = () => { for (const s of pending) if (s.pts.length >= 2) out.push(s); pending = []; cur = null; };
+  const flush = () => { const layer = curLayer(); for (const s of pending) if (s.pts.length >= 2) { s.layer = layer; out.push(s); } pending = []; cur = null; };
 
   const fns = opList.fnArray, argsArr = opList.argsArray;
   for (let i = 0; i < fns.length; i++) {
@@ -48,6 +52,15 @@ export function opListToPolylines(opList, viewportTransform) {
       case OPS.save: stack.push(ctm.slice()); break;
       case OPS.restore: if (stack.length) ctm = stack.pop(); break;
       case OPS.transform: ctm = Util.transform(ctm, args); break;
+      // optional-content (CAD layer) markers
+      case OPS.beginMarkedContentProps: {
+        const tag = args[0], props = args[1];
+        // OCG membership: tag "OC", props is the group id (string) or {id}
+        mc.push(tag === "OC" ? (props && props.id != null ? props.id : props) : null);
+        break;
+      }
+      case OPS.beginMarkedContent: mc.push(null); break;
+      case OPS.endMarkedContent: if (mc.length) mc.pop(); break;
       case OPS.constructPath: {
         const ops = args[0], co = args[1];
         let k = 0, cx = 0, cy = 0;
@@ -116,7 +129,7 @@ export function usefulPolylines(polys, minLenPx = 14) {
     if (p.pts.length < 2) continue;
     const len = polylineLengthPx(p.pts);
     if (len < minLenPx || bboxDiag(p.pts) < minLenPx) continue;
-    kept.push({ id: "v" + i, pts: p.pts, closed: p.closed, lenPx: len });
+    kept.push({ id: "v" + i, pts: p.pts, closed: p.closed, lenPx: len, layer: p.layer ?? null, layerName: p.layerName ?? null });
   }
   return kept;
 }

@@ -170,17 +170,26 @@ export async function renderPageRegion(index, { scale = 1 } = {}) {
 // the plan image renders at (so they overlay exactly). Returns [] for scanned
 // pages (no vector content). Used by the snap-to-line takeoff tool.
 export async function extractPageVectors(index) {
-  if (!_doc) return { polylines: [], w: 0, h: 0 };
+  if (!_doc) return { polylines: [], w: 0, h: 0, layers: [] };
   const page = await _doc.getPage(index + 1);
   const base = page.getViewport({ scale: 1 });
   const vp = page.getViewport({ scale: scaleForPage(base) });
-  let polylines = [];
+  let polylines = [], layers = [];
   try {
     const opList = await page.getOperatorList();
-    polylines = usefulPolylines(opListToPolylines(opList, vp.transform));
+    const raw = opListToPolylines(opList, vp.transform);
+    // resolve optional-content group ids -> CAD layer names (if the PDF has any)
+    let oc = null;
+    try { oc = await _doc.getOptionalContentConfig(); } catch { /* none */ }
+    if (oc) {
+      const nameOf = (id) => { if (id == null) return null; try { return oc.getGroup(id)?.name || null; } catch { return null; } };
+      for (const p of raw) p.layerName = nameOf(p.layer);
+      layers = [...new Set(raw.map((p) => p.layerName).filter(Boolean))];
+    }
+    polylines = usefulPolylines(raw);
   } catch { /* no vector content */ }
   page.cleanup();
-  return { polylines, w: Math.round(vp.width), h: Math.round(vp.height) };
+  return { polylines, w: Math.round(vp.width), h: Math.round(vp.height), layers };
 }
 
 // Text items with their pixel positions (same space as the plan image), used

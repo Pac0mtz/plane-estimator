@@ -490,6 +490,8 @@ export const useStore = create(
           suggestions: [],
           chat: [],
           planSummary: null,
+          vectors: {}, // drop the previous plan's cached geometry / dimensions
+          dims: null,
           ppf: null,
           ppfNote: "not set — calibrate",
           tool: "calibrate",
