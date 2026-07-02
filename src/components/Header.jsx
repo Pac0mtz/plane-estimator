@@ -1,7 +1,8 @@
-import { Upload, Download, RotateCcw, Sparkles, Loader2, MessageSquareText, Ruler } from "lucide-react";
+import { Upload, Download, RotateCcw, Loader2, MessageSquareText, Ruler, ScanLine } from "lucide-react";
 import { useStore } from "../store/useStore.js";
 import { useRef, useState } from "react";
-import { detectTakeoff, hasKey } from "../lib/aiDetect.js";
+import { extractPageVectors } from "../lib/pdf.js";
+import { detectRuns } from "../lib/detectRuns.js";
 import { importPlanFile, ACCEPT } from "../lib/importPlan.js";
 
 // One header button. Label collapses to icon-only below `show` breakpoint.
@@ -37,11 +38,19 @@ export default function Header({ onExport, projectName, assistantOpen, onToggleA
     setBusy(false);
   };
 
+  // Detect walls/regions from the plan's REAL vector geometry (no vision).
   const runDetect = async () => {
+    if (s.bg.type !== "img") { s.setAiError("Open an uploaded PDF page first."); return; }
     s.setAiBusy(true);
     try {
-      const dets = await detectTakeoff({ imageDataUrl: s.bg.href, bg: s.bg });
-      s.ingestDetections(dets);
+      const polylines = s.vectors[s.activePage] || (await extractPageVectors(s.activePage)).polylines;
+      if (!s.vectors[s.activePage]) s.setVectors(s.activePage, polylines);
+      const { regions, runs } = detectRuns(polylines, s.bg, { dimSamples: s.dims?.samples || [] });
+      if (!regions.length && !runs.length) {
+        s.setAiError("No vector geometry found here (scanned/image page). Use Measure wall or trace manually.");
+        return;
+      }
+      s.ingestVectorRuns({ regions, runs });
     } catch (err) {
       s.setAiError(err.message);
     }
@@ -65,8 +74,8 @@ export default function Header({ onExport, projectName, assistantOpen, onToggleA
       <div className="flex items-center gap-1.5">
         <HBtn icon={MessageSquareText} label="Assistant" tone="violet" on={assistantOpen} onClick={onToggleAssistant}
           title="Ask the AI plan assistant" />
-        <HBtn icon={Sparkles} label={s.aiBusy ? "Detecting…" : "AI detect"} tone="aiprimary" disabled={s.aiBusy} spin={s.aiBusy}
-          onClick={runDetect} title={hasKey() ? "Detect takeoff regions with OpenAI vision" : "Detect takeoff regions (demo mode)"} />
+        <HBtn icon={ScanLine} label={s.aiBusy ? "Detecting…" : "Detect walls"} tone="aiprimary" disabled={s.aiBusy} spin={s.aiBusy}
+          onClick={runDetect} title="Detect walls, runs and regions from the plan's real vector geometry (no vision guessing)" />
       </div>
 
       <div className="h-6 w-px bg-slate-800 mx-1 hidden sm:block" />

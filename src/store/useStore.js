@@ -402,6 +402,39 @@ export const useStore = create(
           return { layers, suggestions, aiBusy: false, aiError: null };
         }),
 
+      // Vector "Detect walls": map real closed regions + long runs into the same
+      // suggestion pipeline (accept/reject/canvas all reuse it). Exact geometry,
+      // so confidence is 1 and the label carries the measured LF / SF.
+      ingestVectorRuns: ({ regions, runs }) =>
+        set((s) => {
+          const layers = [...s.layers];
+          const geomOf = (l) => ASSEMBLIES[l.asm]?.geom;
+          const ensure = (geom, name, asm) => {
+            let l = layers.find((x) => geomOf(x) === geom);
+            if (!l) {
+              const used = new Set(layers.map((x) => x.color));
+              const color = PALETTE.find((c) => !used.has(c)) || PALETTE[layers.length % PALETTE.length];
+              l = { id: "l" + uid(), name, color, asm, visible: true, auto: true };
+              layers.push(l);
+            }
+            return l;
+          };
+          const areaL = layers.find((x) => x.asm === "slab") || ensure("area", 'Slab on Grade 4"', "slab");
+          const lineL = layers.find((x) => x.asm === "woodfence" || x.asm === "drywall") || ensure("linear", "Wall / fence run", "drywall");
+          const ppf = s.ppf;
+          const sf = (a) => (ppf ? `${(a / (ppf * ppf)).toFixed(0)} SF` : "region · set scale");
+          const lf = (len) => (ppf ? `${(len / ppf).toFixed(1)} ft` : "line · set scale");
+          const mk = (c, type, layer, label) => ({
+            id: uid(), layerId: layer.id, layerName: layer.name, color: layer.color, asm: layer.asm,
+            type, pts: c.pts, confidence: 1, vector: true, element: label, note: label,
+          });
+          const suggestions = [
+            ...(regions || []).map((r) => mk(r, "area", areaL, sf(r.area))),
+            ...(runs || []).map((r) => mk(r, "linear", lineL, lf(r.len))),
+          ];
+          return { layers, suggestions, aiBusy: false, aiError: null };
+        }),
+
       setScaleFromCalib: (feet) =>
         set((s) => {
           if (s.calib.length !== 2 || !(feet > 0)) return {};

@@ -16,6 +16,7 @@ export default function AiReviewPanel() {
 
   const hasSuggestions = suggestions.length > 0;
   const hasSample = suggestions.some((s) => s.sample);
+  const isVector = suggestions.some((s) => s.vector);
   const scheduleTrades = planSummary?.trades?.length ? planSummary.trades : null;
   if (!hasSuggestions && !aiError && !showKey) {
     // compact affordance to configure the key / explain demo mode
@@ -82,6 +83,11 @@ export default function AiReviewPanel() {
               <div className="p-2.5 border-b border-amber-900/50 bg-amber-950/30 text-[11px] text-amber-300 flex gap-1.5">
                 <AlertTriangle size={13} className="shrink-0 mt-0.5" />
                 <span><b>Sample data — not from your plan.</b> These are fixed placeholder boxes that demo the confirm→price flow. Add an OpenAI key for a real reading.</span>
+              </div>
+            ) : isVector ? (
+              <div className="p-2.5 border-b border-emerald-900/50 bg-emerald-950/25 text-[11px] text-emerald-300 flex gap-1.5">
+                <Check size={13} className="shrink-0 mt-0.5" />
+                <span><b>Read from the plan's real geometry</b> — exact lengths/areas. Accept the actual walls &amp; regions; skip any dimension lines or table borders.</span>
               </div>
             ) : (
               <div className="p-2.5 border-b border-slate-800 bg-slate-950/60 text-[11px] text-slate-400 flex gap-1.5">

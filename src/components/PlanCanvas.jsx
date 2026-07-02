@@ -309,7 +309,9 @@ export default function PlanCanvas() {
             const cc = confColor(sg.confidence);
             const label = sg.sample
               ? `SAMPLE · ${sg.element || sg.layerName || "AI"}`
-              : `${sg.element || sg.layerName || "AI"} · ${Math.round((sg.confidence || 0) * 100)}%`;
+              : sg.vector
+                ? (sg.element || sg.layerName || "")
+                : `${sg.element || sg.layerName || "AI"} · ${Math.round((sg.confidence || 0) * 100)}%`;
             const pinIt = (e) => { e.cancelBubble = true; setPinned({ kind: "suggestion", obj: sg, ...screenPos(e) }); };
             const hp = { onClick: pinIt, onTap: pinIt, listening: true, ...hoverProps("suggestion", sg) };
             const showChip = hot || labelsOn;
