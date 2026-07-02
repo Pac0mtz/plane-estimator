@@ -339,21 +339,24 @@ export default function PlanCanvas() {
             );
           })}
 
-          {/* real vector geometry (snap tool) — the plan's actual lines, faint,
-              with the one under the cursor lit up + its exact length */}
-          {tool === "snap" && (pageVectors || []).map((poly) => {
-            const on = snapHit?.id === poly.id;
-            return (
-              <Line key={poly.id} points={flatPts(poly.pts)} closed={poly.closed}
-                stroke={on ? "#22d3ee" : "#38bdf8"} strokeWidth={(on ? 3 : 0.6) * inv}
-                opacity={on ? 1 : 0.3} listening={false} lineCap="round" lineJoin="round" />
-            );
-          })}
+          {/* snap tool: NOTHING is drawn until you hover an actual line — then
+              only that one line lights up with its endpoints + exact length.
+              (No faint "soup" of every line, which read as useless clutter.) */}
           {tool === "snap" && snapHit && (() => {
             const mid = snapHit.pts[Math.floor(snapHit.pts.length / 2)];
             const lenPx = snapHit.lenPx || polylineLengthPx(snapHit.pts);
             const txt = ppf ? `${(lenPx / ppf).toFixed(1)} ft` : `${Math.round(lenPx)} px · set scale`;
-            return <Chip x={mid.x} y={mid.y} color="#0891b2" inv={inv} text={txt} center />;
+            const ends = [snapHit.pts[0], snapHit.pts[snapHit.pts.length - 1]];
+            return (
+              <Group listening={false}>
+                <Line points={flatPts(snapHit.pts)} closed={snapHit.closed} stroke="#22d3ee" strokeWidth={3 * inv}
+                  lineCap="round" lineJoin="round" shadowColor="#22d3ee" shadowBlur={6 * inv} shadowOpacity={0.9} />
+                {ends.map((p, i) => (
+                  <Circle key={i} x={p.x} y={p.y} radius={4 * inv} fill="#22d3ee" stroke="#fff" strokeWidth={1.5 * inv} />
+                ))}
+                <Chip x={mid.x} y={mid.y} color="#0891b2" inv={inv} text={txt} center />
+              </Group>
+            );
           })()}
 
           {/* search-hit flash marker */}
