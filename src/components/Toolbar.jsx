@@ -121,12 +121,12 @@ export default function Toolbar() {
       <Btn ic={<RectangleHorizontal size={15} />} label="Rectangle" hotkey="r" disabled={geom !== "area"} on={s.tool === "rect"} onClick={() => s.setTool("rect")} />
       <Btn ic={<Ban size={15} />} label="Exclude area" hotkey="x" on={s.tool === "exclude"} onClick={() => s.setTool("exclude")} />
 
-      <Label>Snap (vector plans)</Label>
-      <Btn ic={<Magnet size={15} />} label="Snap line" hotkey="s" accent on={s.tool === "snap"} onClick={() => s.setTool("snap")} />
+      <Label>Walls (vector plans)</Label>
+      <Btn ic={<Magnet size={15} />} label="Measure wall" hotkey="s" accent on={s.tool === "snap"} onClick={() => s.setTool("snap")} />
       {s.tool === "snap" && (
         <div className="text-[10px] text-slate-500 px-1 leading-snug">
           {s.vectorsBusy ? "Reading real geometry…" : (s.vectors[s.activePage]?.length
-            ? <>Hover a real line — it highlights. Click to trace it exactly onto <b className="text-slate-300">{s.activeLayer()?.name}</b>.</>
+            ? <><b className="text-slate-300">Hover any wall/line</b> to see its length. Click to add it to <b className="text-slate-300">{s.activeLayer()?.name}</b>.</>
             : "No vector geometry on this sheet (scanned or image). Trace manually instead.")}
         </div>
       )}

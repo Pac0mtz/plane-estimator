@@ -359,15 +359,6 @@ export default function PlanCanvas() {
             );
           })()}
 
-          {/* printed dimensions the app read off the sheet (Read dimensions) —
-              proof it's using the plan's own numbers, not a guess */}
-          {labelsOn && s.dims?.samples?.map((d, i) => (
-            <Group key={"dim" + i} listening={false}>
-              <Circle x={d.x} y={d.y} radius={3 * inv} fill="#2dd4bf" stroke="#0f172a" strokeWidth={0.75 * inv} />
-              <Chip x={d.x} y={d.y} color="#0d9488" inv={inv} text={d.str} center />
-            </Group>
-          ))}
-
           {/* search-hit flash marker */}
           {flash && (
             <Circle x={flash.x} y={flash.y} radius={16 * inv} stroke="#facc15" strokeWidth={3 * inv} listening={false} />
