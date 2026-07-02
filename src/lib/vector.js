@@ -155,3 +155,81 @@ export function nearestPolyline(polys, pt, maxDist = 12) {
   }
   return best;
 }
+
+// ---- run growing: one click grabs a whole collinear wall run --------------
+// Walls are often drawn as many short segments (and split at openings). We
+// break every polyline into segments, index their endpoints on a grid, and —
+// from a seed segment — chain neighbouring segments that connect end-to-end AND
+// stay collinear, in both directions. Stops at corners, so clicking one wall
+// grabs that full straight run, not the whole building.
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const unit = (a, b) => { const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 1; return { x: dx / L, y: dy / L }; };
+
+export function buildRunIndex(polylines) {
+  const segs = [];
+  for (const p of polylines || []) {
+    for (let i = 1; i < p.pts.length; i++) {
+      const a = p.pts[i - 1], b = p.pts[i];
+      if (dist(a, b) >= 1) segs.push({ a, b });
+    }
+  }
+  const cell = 24;
+  const grid = new Map();
+  const key = (x, y) => `${Math.round(x / cell)},${Math.round(y / cell)}`;
+  for (const s of segs) for (const p of [s.a, s.b]) {
+    const k = key(p.x, p.y);
+    if (!grid.has(k)) grid.set(k, []);
+    grid.get(k).push(s);
+  }
+  return { segs, grid, cell };
+}
+
+function neighbours(index, x, y) {
+  const out = [], cx = Math.round(x / index.cell), cy = Math.round(y / index.cell);
+  for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+    const arr = index.grid.get(`${cx + i},${cy + j}`);
+    if (arr) out.push(...arr);
+  }
+  return out;
+}
+
+export function nearestSegment(index, pt, maxDist = 12) {
+  let best = null, bd = maxDist;
+  for (const s of index.segs) {
+    const d = distToSegment(pt, s.a, s.b);
+    if (d < bd) { bd = d; best = s; }
+  }
+  return best;
+}
+
+export function growRun(index, seed, { gapTol = 10, angleDeg = 7 } = {}) {
+  if (!seed) return [];
+  const minDot = Math.cos((angleDeg * Math.PI) / 180);
+  const used = new Set([seed]);
+  const rd = unit(seed.a, seed.b);
+  const extend = (from, want) => {
+    const chain = [];
+    let cur = from, guard = 0;
+    while (guard++ < 400) {
+      let best = null, bestDot = minDot;
+      for (const s of neighbours(index, cur.x, cur.y)) {
+        if (used.has(s)) continue;
+        let far = null;
+        if (dist(s.a, cur) <= gapTol) far = s.b;
+        else if (dist(s.b, cur) <= gapTol) far = s.a;
+        else continue;
+        const d = unit(cur, far);
+        const dot = d.x * want.x + d.y * want.y; // collinear & same heading
+        if (dot > bestDot) { bestDot = dot; best = { s, far }; }
+      }
+      if (!best) break;
+      used.add(best.s);
+      chain.push(best.far);
+      cur = best.far;
+    }
+    return chain;
+  };
+  const fwd = extend(seed.b, rd);
+  const bwd = extend(seed.a, { x: -rd.x, y: -rd.y });
+  return [...bwd.reverse(), seed.a, seed.b, ...fwd];
+}

@@ -126,7 +126,7 @@ export default function Toolbar() {
       {s.tool === "snap" && (
         <div className="text-[10px] text-slate-500 px-1 leading-snug">
           {s.vectorsBusy ? "Reading real geometry…" : (s.vectors[s.activePage]?.length
-            ? <><b className="text-slate-300">Hover any wall/line</b> to see its length. Click to add it to <b className="text-slate-300">{s.activeLayer()?.name}</b>.</>
+            ? <><b className="text-slate-300">Hover a wall</b> — the whole run highlights with its length. Click to add it to <b className="text-slate-300">{s.activeLayer()?.name}</b>.</>
             : "No vector geometry on this sheet (scanned or image). Trace manually instead.")}
         </div>
       )}

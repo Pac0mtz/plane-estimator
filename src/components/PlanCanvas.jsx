@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { Stage, Layer, Image as KImage, Rect, Line, Circle, Text, Group } from "react-konva";
 import { useStore } from "../store/useStore.js";
 import { ASSEMBLIES } from "../lib/assemblies.js";
@@ -6,7 +6,7 @@ import { traceQty, centroid, flatPts } from "../lib/geometry.js";
 import { runAssistant } from "../lib/planAssistant.js";
 import { importPlanFile, ACCEPT } from "../lib/importPlan.js";
 import { extractPageVectors } from "../lib/pdf.js";
-import { nearestPolyline, polylineLengthPx } from "../lib/vector.js";
+import { polylineLengthPx, buildRunIndex, nearestSegment, growRun } from "../lib/vector.js";
 import { Maximize, UploadCloud, Eye, EyeOff } from "lucide-react";
 import HoverCard from "./HoverCard.jsx";
 import CanvasSearch from "./CanvasSearch.jsx";
@@ -42,8 +42,10 @@ export default function PlanCanvas() {
   const [view, setView] = useState({ scale: 1, x: 0, y: 0 });
   const [hover, setHover] = useState(null); // world-space cursor for rubber-band previews
   const [labelsOn, setLabelsOn] = useState(true); // show all quantity/AI chips vs. keep the sheet clean
-  const [snapHit, setSnapHit] = useState(null); // vector polyline currently under the cursor (snap tool)
+  const [snapHit, setSnapHit] = useState(null); // full wall run currently under the cursor (snap tool)
   const pageVectors = s.vectors[activePage] || null;
+  // segment index for growing a whole collinear wall run from one click
+  const runIndex = useMemo(() => (pageVectors ? buildRunIndex(pageVectors) : null), [pageVectors]);
 
   // Snap tool: pull the page's real vector geometry once, lazily. Only for
   // vector PDFs (image bg) — scanned pages come back empty.
@@ -135,7 +137,10 @@ export default function PlanCanvas() {
   const onMove = () => {
     if (tool === "snap") {
       const p = stageRef.current.getRelativePointerPosition();
-      setSnapHit(nearestPolyline(pageVectors || [], p, 12 * inv) || null);
+      const seed = runIndex ? nearestSegment(runIndex, p, 12 * inv) : null;
+      if (!seed) { if (snapHit) setSnapHit(null); return; }
+      const pts = growRun(runIndex, seed); // extend along the whole collinear run
+      setSnapHit({ pts, lenPx: polylineLengthPx(pts) });
       return;
     }
     if (!needsHover) { if (hover) setHover(null); return; }
