@@ -5,6 +5,8 @@ import {
 import { useStore } from "../store/useStore.js";
 import { geomLabel } from "../lib/assemblies.js";
 import { detectScale, hasKey } from "../lib/aiDetect.js";
+import { extractPageText, extractPageVectors } from "../lib/pdf.js";
+import { calibrateFromDimensions } from "../lib/dimensions.js";
 
 function Btn({ ic, label, hotkey, on, accent, onClick, disabled }) {
   return (
@@ -23,6 +25,33 @@ export default function Toolbar() {
   const geom = s.activeGeom();
   const geomIcon = geom === "area" ? <Square size={15} /> : geom === "linear" ? <Minus size={15} /> : <Hash size={15} />;
   const [scaleBusy, setScaleBusy] = useState(false);
+  const [dimBusy, setDimBusy] = useState(false);
+  const [dimMsg, setDimMsg] = useState("");
+
+  // Read the sheet's printed dimensions and calibrate scale from them — the
+  // accurate, vision-free path. Needs vector geometry (a real PDF, not a scan).
+  const runReadDimensions = async () => {
+    if (s.bg.type !== "img") { setDimMsg("Open an uploaded PDF page first."); return; }
+    setDimBusy(true); setDimMsg("");
+    try {
+      const { items } = await extractPageText(s.activePage);
+      const polylines = s.vectors[s.activePage] || (await extractPageVectors(s.activePage)).polylines;
+      if (!s.vectors[s.activePage]) s.setVectors(s.activePage, polylines);
+      const res = calibrateFromDimensions(items, polylines);
+      if (res.ppf) {
+        s.setPpf(res.ppf, `dimensions (${res.samples.length})`);
+        s.setDims(res);
+        setDimMsg(`Scale set from ${res.samples.length} printed dimensions.`);
+      } else {
+        s.setDims(null);
+        setDimMsg("No readable dimensions here (needs a vector PDF with strings like 40'-0\"). Use Calibrate.");
+      }
+    } catch (err) {
+      setDimMsg(err.message);
+    } finally {
+      setDimBusy(false);
+    }
+  };
 
   const runDetectScale = async () => {
     if (s.bg.type !== "img" || !s.bg.href) return alert("Open an uploaded plan page first — the demo has a fixed scale.");
@@ -77,6 +106,13 @@ export default function Toolbar() {
         {scaleBusy ? <Loader2 size={15} className="animate-spin" /> : <ScanLine size={15} />}
         <span className="flex-1 text-left">{scaleBusy ? "Reading…" : "Detect scale"}</span>
       </button>
+      <button onClick={runReadDimensions} disabled={dimBusy} aria-label="Read printed dimensions to calibrate"
+        title="Read the sheet's printed dimensions (40'-0'' …) and set scale exactly — vector PDFs only"
+        className="flex items-center gap-2 text-xs px-2.5 py-2 rounded bg-teal-700 hover:bg-teal-600 text-white disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-teal-400 outline-none">
+        {dimBusy ? <Loader2 size={15} className="animate-spin" /> : <Ruler size={15} />}
+        <span className="flex-1 text-left">{dimBusy ? "Reading…" : "Read dimensions"}</span>
+      </button>
+      {dimMsg && <div className="text-[10px] text-slate-400 px-1 leading-snug">{dimMsg}</div>}
       <Btn ic={<Ruler size={15} />} label="Calibrate" hotkey="c" on={s.tool === "calibrate"} onClick={() => s.setTool("calibrate")} />
       <Btn ic={<MoveDiagonal size={15} />} label="Measure" hotkey="m" on={s.tool === "measure"} onClick={() => s.setTool("measure")} />
 

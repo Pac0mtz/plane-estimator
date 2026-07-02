@@ -183,6 +183,27 @@ export async function extractPageVectors(index) {
   return { polylines, w: Math.round(vp.width), h: Math.round(vp.height) };
 }
 
+// Text items with their pixel positions (same space as the plan image), used
+// to read printed DIMENSIONS off the sheet. [] for scanned pages.
+export async function extractPageText(index) {
+  if (!_doc) return { items: [], w: 0, h: 0 };
+  const page = await _doc.getPage(index + 1);
+  const base = page.getViewport({ scale: 1 });
+  const vp = page.getViewport({ scale: scaleForPage(base) });
+  let items = [];
+  try {
+    const tc = await page.getTextContent();
+    items = tc.items
+      .filter((it) => it.str && it.str.trim())
+      .map((it) => {
+        const p = pdfjs.Util.applyTransform([it.transform[4], it.transform[5]], vp.transform);
+        return { str: it.str, x: p[0], y: p[1] };
+      });
+  } catch { /* scanned page */ }
+  page.cleanup();
+  return { items, w: Math.round(vp.width), h: Math.round(vp.height) };
+}
+
 export function closePdf() {
   if (_doc) {
     _doc.destroy();

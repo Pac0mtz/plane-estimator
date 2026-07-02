@@ -230,6 +230,11 @@ export const useStore = create(
       aiBusy: false,
       aiError: null,
 
+      // printed dimensions read off the sheet (for the "Read dimensions"
+      // auto-calibrate). { ppf, samples:[{x,y,feet,str}], all } or null.
+      dims: null,
+      setDims: (dims) => set({ dims }),
+
       // real vector geometry pulled from the PDF (page index -> polylines).
       // Powers the snap-to-line tool. Ephemeral (re-extracted per session).
       vectors: {},
