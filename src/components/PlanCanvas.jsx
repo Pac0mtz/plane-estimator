@@ -84,6 +84,26 @@ export default function PlanCanvas() {
 
   useEffect(() => { fit(); }, [fit, bg.type, bg.href]);
 
+  // dev/test hook: drive the canvas view + snap hover deterministically (React
+  // owns the Stage transform, so imperative Konva calls get snapped back)
+  useEffect(() => {
+    window.__planView = {
+      set: setView, get: () => view, size,
+      // exactly the snap-tool hover path, minus the pointer: world coords in,
+      // the same grown run the user would see out (and shown on canvas)
+      snapProbe: (x, y, tol = 12 / view.scale) => {
+        if (!runIndex) return null;
+        const seed = nearestSegment(runIndex, { x, y }, tol);
+        if (!seed) { setSnapHit(null); return null; }
+        const pts = growRun(runIndex, seed);
+        const hit = { pts, lenPx: polylineLengthPx(pts) };
+        setSnapHit(hit);
+        return { pts: pts.length, lenPx: Math.round(hit.lenPx), ft: ppf ? Math.round((hit.lenPx / ppf) * 10) / 10 : null };
+      },
+    };
+    return () => { delete window.__planView; };
+  }, [view, size, runIndex, ppf]);
+
   // keyboard: F or 0 fits the page to the viewport
   useEffect(() => {
     const onKey = (e) => {

@@ -38,13 +38,21 @@ export default function Toolbar() {
       const polylines = s.vectors[s.activePage] || (await extractPageVectors(s.activePage)).polylines;
       if (!s.vectors[s.activePage]) s.setVectors(s.activePage, polylines);
       const res = calibrateFromDimensions(items, polylines);
-      if (res.ppf) {
+      const fromNote = /scale/i.test(s.ppfNote || "");
+      if (res.ppf && s.ppf && fromNote && Math.abs(res.ppf - s.ppf) / s.ppf > 0.12) {
+        // the printed scale note is exact arithmetic (note × dpi) — never let a
+        // lower-confidence dimension pairing silently override it
+        s.setDims(res);
+        setDimMsg(`Dimensions suggest ${res.ppf.toFixed(1)} px/ft but the printed scale note gives ${s.ppf.toFixed(1)} — keeping the note.`);
+      } else if (res.ppf) {
         s.setPpf(res.ppf, `dimensions (${res.samples.length})`);
         s.setDims(res);
         setDimMsg(`Scale set from ${res.samples.length} printed dimensions.`);
       } else {
         s.setDims(null);
-        setDimMsg("No readable dimensions here (needs a vector PDF with strings like 40'-0\"). Use Calibrate.");
+        setDimMsg(s.ppf && fromNote
+          ? `No reliable dimension lines on this sheet — keeping the printed scale note (${s.ppf.toFixed(1)} px/ft).`
+          : "No readable dimensions here (needs a vector PDF with dimension strings like 40'-0\"). Use Calibrate.");
       }
     } catch (err) {
       setDimMsg(err.message);

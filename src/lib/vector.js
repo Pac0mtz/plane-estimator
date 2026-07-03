@@ -202,7 +202,7 @@ export function nearestSegment(index, pt, maxDist = 12) {
   return best;
 }
 
-export function growRun(index, seed, { gapTol = 10, angleDeg = 7 } = {}) {
+export function growRun(index, seed, { gapTol = 10, angleDeg = 7, endStub = 45 } = {}) {
   if (!seed) return [];
   const minDot = Math.cos((angleDeg * Math.PI) / 180);
   const used = new Set([seed]);
@@ -231,5 +231,14 @@ export function growRun(index, seed, { gapTol = 10, angleDeg = 7 } = {}) {
   };
   const fwd = extend(seed.b, rd);
   const bwd = extend(seed.a, { x: -rd.x, y: -rd.y });
-  return [...bwd.reverse(), seed.a, seed.b, ...fwd];
+  const pts = [...bwd.reverse(), seed.a, seed.b, ...fwd];
+  // trim short dead-end stubs at both ends — dimension ticks/extension lines
+  // sit collinear right at wall corners (touching exactly, so gapTol can't
+  // reject them) and would overshoot the run past the corner. A real wall
+  // doesn't end in a tiny fragment; a tick always does. Never trim the seed.
+  const first = pts.indexOf(seed.a), last = pts.indexOf(seed.b);
+  let lo = 0, hi = pts.length - 1;
+  while (lo < first && dist(pts[lo], pts[lo + 1]) < endStub) lo++;
+  while (hi > last && dist(pts[hi], pts[hi - 1]) < endStub) hi--;
+  return pts.slice(lo, hi + 1);
 }

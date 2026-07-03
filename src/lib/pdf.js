@@ -230,6 +230,11 @@ export function closePdf() {
   _urls.clear();
 }
 
+// dev aid: reach the live PDF (same module instance the app uses) from the
+// console/preview harness for smoke tests — dynamic import() would get a
+// different instance whose _doc is null.
+if (typeof window !== "undefined") window.__pdf = { extractPageText, extractPageVectors, renderPage };
+
 // A blob/object URL can't be POSTed to the OpenAI API — convert to a base64
 // data URL first. (Used by the AI detect path when a real key is set.)
 export async function toDataUrl(url) {
