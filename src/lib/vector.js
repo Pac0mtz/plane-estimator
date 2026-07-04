@@ -202,6 +202,39 @@ export function nearestSegment(index, pt, maxDist = 12) {
   return best;
 }
 
+// Snap a click to the plan's real geometry, Bluebeam-style: endpoints win,
+// then segment midpoints, then the nearest point ON a line. Uses the same
+// endpoint grid as run-growing. Returns { x, y, kind } or null.
+export function snapPoint(index, pt, tol = 10) {
+  if (!index) return null;
+  // full scans — a few thousand segments is trivial per click/move, and the
+  // endpoint grid can't find the midpoint of a long segment
+  let best = null, bd = tol;
+  for (const s of index.segs) {
+    for (const e of [s.a, s.b]) {
+      const d = Math.hypot(e.x - pt.x, e.y - pt.y);
+      if (d < bd) { bd = d; best = { x: e.x, y: e.y, kind: "end" }; }
+    }
+  }
+  if (best) return best;
+  bd = tol * 0.85;
+  for (const s of index.segs) {
+    const mx = (s.a.x + s.b.x) / 2, my = (s.a.y + s.b.y) / 2;
+    const d = Math.hypot(mx - pt.x, my - pt.y);
+    if (d < bd) { bd = d; best = { x: mx, y: my, kind: "mid" }; }
+  }
+  if (best) return best;
+  const seg = nearestSegment(index, pt, tol * 0.7);
+  if (seg) {
+    const dx = seg.b.x - seg.a.x, dy = seg.b.y - seg.a.y;
+    const l2 = dx * dx + dy * dy || 1;
+    let t = ((pt.x - seg.a.x) * dx + (pt.y - seg.a.y) * dy) / l2;
+    t = Math.max(0, Math.min(1, t));
+    return { x: seg.a.x + t * dx, y: seg.a.y + t * dy, kind: "edge" };
+  }
+  return null;
+}
+
 export function growRun(index, seed, { gapTol = 10, angleDeg = 7, endStub = 45 } = {}) {
   if (!seed) return [];
   const minDot = Math.cos((angleDeg * Math.PI) / 180);

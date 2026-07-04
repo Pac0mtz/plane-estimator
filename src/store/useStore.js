@@ -251,6 +251,14 @@ export const useStore = create(
           return { traces: [...s.traces, { id: uid(), layer: s.activeId, page: s.activePage, type: "linear", pts: clamped, snapped: true }] };
         }),
 
+      // click inside a room -> area trace from the flood-filled boundary
+      addAreaTrace: (pts) =>
+        set((s) => {
+          if (!pts || pts.length < 3) return {};
+          const clamped = pts.map((p) => ({ x: Math.max(0, Math.min(s.bg.w, p.x)), y: Math.max(0, Math.min(s.bg.h, p.y)) }));
+          return { traces: [...s.traces, { id: uid(), layer: s.activeId, page: s.activePage, type: "area", pts: clamped, snapped: true }] };
+        }),
+
       setTool: (tool) => set({ tool, draft: [], calib: [], measure: null }),
       setActive: (activeId) => set({ activeId, draft: [] }),
       setSel: (selId) => set({ selId }),

@@ -6,7 +6,8 @@ import { traceQty, centroid, flatPts } from "../lib/geometry.js";
 import { runAssistant } from "../lib/planAssistant.js";
 import { importPlanFile, ACCEPT } from "../lib/importPlan.js";
 import { extractPageVectors } from "../lib/pdf.js";
-import { polylineLengthPx, buildRunIndex, nearestSegment, growRun } from "../lib/vector.js";
+import { polylineLengthPx, buildRunIndex, nearestSegment, growRun, snapPoint } from "../lib/vector.js";
+import { floodRoom } from "../lib/floodArea.js";
 import { Maximize, UploadCloud, Eye, EyeOff } from "lucide-react";
 import HoverCard from "./HoverCard.jsx";
 import CanvasSearch from "./CanvasSearch.jsx";
@@ -43,14 +44,18 @@ export default function PlanCanvas() {
   const [hover, setHover] = useState(null); // world-space cursor for rubber-band previews
   const [labelsOn, setLabelsOn] = useState(true); // show all quantity/AI chips vs. keep the sheet clean
   const [snapHit, setSnapHit] = useState(null); // full wall run currently under the cursor (snap tool)
+  const [snapPt, setSnapPt] = useState(null); // snap-to-content target for drawing tools
+  const [roomBusy, setRoomBusy] = useState(false);
+  const [toast, setToast] = useState(null); // transient status message over the canvas
   const pageVectors = s.vectors[activePage] || null;
   // segment index for growing a whole collinear wall run from one click
   const runIndex = useMemo(() => (pageVectors ? buildRunIndex(pageVectors) : null), [pageVectors]);
+  const say = (msg) => { setToast(msg); clearTimeout(say._t); say._t = setTimeout(() => setToast(null), 3200); };
 
-  // Snap tool: pull the page's real vector geometry once, lazily. Only for
-  // vector PDFs (image bg) — scanned pages come back empty.
+  // tools that read the plan's real geometry (hover-measure + click snapping)
+  const wantsVectors = tool === "snap" || tool === "draw" || tool === "rect" || tool === "calibrate" || tool === "measure";
   useEffect(() => {
-    if (tool !== "snap" || bg.type !== "img" || pageVectors) return;
+    if (!wantsVectors || bg.type !== "img" || pageVectors) return;
     let cancelled = false;
     s.setVectorsBusy(true);
     extractPageVectors(activePage)
@@ -58,7 +63,7 @@ export default function PlanCanvas() {
       .catch(() => { if (!cancelled) s.setVectors(activePage, []); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, bg.type, activePage, pageVectors]);
+  }, [wantsVectors, bg.type, activePage, pageVectors]);
 
   // measure container — a ResizeObserver catches layout changes (collapsing a
   // side panel, toggling the sidebar) that don't fire a window resize event,
@@ -146,7 +151,35 @@ export default function PlanCanvas() {
       return;
     }
     const p = stageRef.current.getRelativePointerPosition();
-    s.addPoint({ x: p.x, y: p.y });
+    // room tool: flood-fill the enclosed region around the click (Dynamic
+    // Fill / SingleClick mechanism) and drop it as an exact area trace
+    if (tool === "room") {
+      if (bg.type !== "img" || !imgEl) { say("Open an uploaded plan page first."); return; }
+      if (roomBusy) return;
+      setRoomBusy(true);
+      // yield a frame so the busy cursor shows before the fill work
+      setTimeout(() => {
+        try {
+          const res = floodRoom(imgEl, bg.w, bg.h, p);
+          if (res.pts) {
+            s.addAreaTrace(res.pts);
+            setFlash(centroid(res.pts)); setTimeout(() => setFlash(null), 1200);
+          } else if (res.leaked) {
+            say("Region isn't enclosed — the fill escaped through an opening. Draw the area manually or trace a boundary first.");
+          } else {
+            say("No room found at that point — click inside an enclosed space.");
+          }
+        } catch (err) {
+          say(err.message);
+        } finally {
+          setRoomBusy(false);
+        }
+      }, 30);
+      return;
+    }
+    // drawing tools snap to the plan's real geometry (endpoint > midpoint > edge)
+    const snapped = snapPt || (runIndex ? snapPoint(runIndex, p, 10 * inv) : null);
+    s.addPoint(snapped ? { x: snapped.x, y: snapped.y } : { x: p.x, y: p.y });
   };
 
   const onDragEnd = (e) => {
@@ -154,6 +187,7 @@ export default function PlanCanvas() {
   };
 
   const needsHover = (tool === "rect" && draft.length) || (tool === "measure" && measure && !measure.b) || (tool === "calibrate" && calib.length === 1);
+  const drawSnapTool = tool === "draw" || tool === "rect" || tool === "calibrate" || tool === "measure";
   const onMove = () => {
     if (tool === "snap") {
       const p = stageRef.current.getRelativePointerPosition();
@@ -163,6 +197,11 @@ export default function PlanCanvas() {
       setSnapHit({ pts, lenPx: polylineLengthPx(pts) });
       return;
     }
+    // snap-to-content indicator for the drawing tools
+    if (drawSnapTool && runIndex) {
+      const p = stageRef.current.getRelativePointerPosition();
+      setSnapPt(snapPoint(runIndex, p, 10 * inv));
+    } else if (snapPt) setSnapPt(null);
     if (!needsHover) { if (hover) setHover(null); return; }
     const p = stageRef.current.getRelativePointerPosition();
     setHover({ x: p.x, y: p.y });
@@ -237,7 +276,7 @@ export default function PlanCanvas() {
         onTap={onClick}
         onMouseMove={onMove}
         onDragEnd={onDragEnd}
-        style={{ cursor: tool === "pan" ? "grab" : tool === "select" ? "default" : "crosshair" }}
+        style={{ cursor: tool === "pan" ? "grab" : tool === "select" ? "default" : roomBusy ? "progress" : "crosshair" }}
       >
         <Layer listening={false}>
           {bg.type === "img" && imgEl ? (
@@ -386,6 +425,14 @@ export default function PlanCanvas() {
             );
           })()}
 
+          {/* snap-to-content indicator: the drawing click will land HERE */}
+          {drawSnapTool && snapPt && (
+            <Group listening={false}>
+              <Circle x={snapPt.x} y={snapPt.y} radius={6 * inv} stroke="#22d3ee" strokeWidth={2 * inv} />
+              <Circle x={snapPt.x} y={snapPt.y} radius={1.6 * inv} fill="#22d3ee" />
+            </Group>
+          )}
+
           {/* search-hit flash marker */}
           {flash && (
             <Circle x={flash.x} y={flash.y} radius={16 * inv} stroke="#facc15" strokeWidth={3 * inv} listening={false} />
@@ -424,6 +471,17 @@ export default function PlanCanvas() {
           )}
         </Layer>
       </Stage>
+
+      {toast && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 max-w-md px-3 py-2 rounded-lg bg-slate-900/95 border border-amber-700/60 text-[12px] text-amber-200 shadow-lg">
+          {toast}
+        </div>
+      )}
+      {roomBusy && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 px-3 py-2 rounded-lg bg-slate-900/95 border border-slate-700 text-[12px] text-cyan-300 shadow-lg">
+          Filling room…
+        </div>
+      )}
 
       {bg.type === "empty" && <UploadPrompt traceCount={traces.length} />}
 

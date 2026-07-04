@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import {
-  MousePointer2, Hand, Ruler, Square, Minus, Hash, Undo2, Check, Trash2, X, RectangleHorizontal, MoveDiagonal, ScanLine, Loader2, Ban, Magnet,
+  MousePointer2, Hand, Ruler, Square, Minus, Hash, Undo2, Check, Trash2, X, RectangleHorizontal, MoveDiagonal, ScanLine, Loader2, Ban, Magnet, PaintBucket,
 } from "lucide-react";
 import { useStore } from "../store/useStore.js";
 import { geomLabel } from "../lib/assemblies.js";
@@ -91,7 +91,7 @@ export default function Toolbar() {
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const k = e.key.toLowerCase();
-      const map = { v: "select", h: "pan", c: "calibrate", d: "draw", r: "rect", m: "measure", x: "exclude", s: "snap" };
+      const map = { v: "select", h: "pan", c: "calibrate", d: "draw", r: "rect", m: "measure", x: "exclude", s: "snap", a: "room" };
       if (map[k]) { e.preventDefault(); s.setTool(map[k]); }
       else if (e.key === "Escape") s.setTool("select");
       else if (e.key === "Enter" && s.tool === "draw") s.finishDraft();
@@ -136,6 +136,12 @@ export default function Toolbar() {
           {s.vectorsBusy ? "Reading real geometry…" : (s.vectors[s.activePage]?.length
             ? <><b className="text-slate-300">Hover a wall</b> — the whole run highlights with its length. Click to add it to <b className="text-slate-300">{s.activeLayer()?.name}</b>.</>
             : "No vector geometry on this sheet (scanned or image). Trace manually instead.")}
+        </div>
+      )}
+      <Btn ic={<PaintBucket size={15} />} label="Room area" hotkey="a" accent on={s.tool === "room"} onClick={() => s.setTool("room")} />
+      {s.tool === "room" && (
+        <div className="text-[10px] text-slate-500 px-1 leading-snug">
+          <b className="text-slate-300">Click inside a room</b> — the enclosed area fills and lands on <b className="text-slate-300">{s.activeLayer()?.name}</b> as exact SF. If the room has an opening it may not enclose; draw the area manually there.
         </div>
       )}
 
