@@ -251,12 +251,19 @@ export const useStore = create(
           return { traces: [...s.traces, { id: uid(), layer: s.activeId, page: s.activePage, type: "linear", pts: clamped, snapped: true }] };
         }),
 
-      // click inside a room -> area trace from the flood-filled boundary
+      // click inside a room -> area trace from the flood-filled boundary.
+      // An area trace on a linear/count layer would price nonsense (SF read as
+      // LF), so land it on the active layer only if that layer measures area —
+      // otherwise the first visible area layer (and make it active).
       addAreaTrace: (pts) =>
         set((s) => {
           if (!pts || pts.length < 3) return {};
+          const geomOf = (l) => ASSEMBLIES[l.asm]?.geom;
+          let layer = s.layers.find((l) => l.id === s.activeId);
+          if (!layer || geomOf(layer) !== "area") layer = s.layers.find((l) => l.visible && geomOf(l) === "area");
+          if (!layer) return {}; // no area layer to receive it — caller warns
           const clamped = pts.map((p) => ({ x: Math.max(0, Math.min(s.bg.w, p.x)), y: Math.max(0, Math.min(s.bg.h, p.y)) }));
-          return { traces: [...s.traces, { id: uid(), layer: s.activeId, page: s.activePage, type: "area", pts: clamped, snapped: true }] };
+          return { activeId: layer.id, traces: [...s.traces, { id: uid(), layer: layer.id, page: s.activePage, type: "area", pts: clamped, snapped: true }] };
         }),
 
       setTool: (tool) => set({ tool, draft: [], calib: [], measure: null }),

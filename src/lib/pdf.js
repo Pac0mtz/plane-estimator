@@ -51,7 +51,10 @@ async function renderToCanvas(page, scale) {
   canvas.width = Math.round(viewport.width);
   canvas.height = Math.round(viewport.height);
   const ctx = canvas.getContext("2d", { alpha: false });
-  await page.render({ canvasContext: ctx, viewport }).promise;
+  // intent "print": display-intent rendering is scheduled on rAF, which never
+  // fires in a hidden/background tab — an import would hang forever if the
+  // user switches tabs. Print intent uses timeouts and renders anywhere.
+  await page.render({ canvasContext: ctx, viewport, intent: "print" }).promise;
   return canvas;
 }
 

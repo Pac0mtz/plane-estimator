@@ -162,8 +162,13 @@ export default function PlanCanvas() {
         try {
           const res = floodRoom(imgEl, bg.w, bg.h, p);
           if (res.pts) {
+            const before = useStore.getState().traces.length;
             s.addAreaTrace(res.pts);
-            setFlash(centroid(res.pts)); setTimeout(() => setFlash(null), 1200);
+            if (useStore.getState().traces.length === before) {
+              say("No area layer to put this on — add one (e.g. Slab, Flooring) and click again.");
+            } else {
+              setFlash(centroid(res.pts)); setTimeout(() => setFlash(null), 1200);
+            }
           } else if (res.leaked) {
             say("Region isn't enclosed — the fill escaped through an opening. Draw the area manually or trace a boundary first.");
           } else {
