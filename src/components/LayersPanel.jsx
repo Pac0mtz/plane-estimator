@@ -1,14 +1,21 @@
+import { useState } from "react";
 import { Eye, EyeOff, Layers, Plus, Sparkles } from "lucide-react";
 import { useStore } from "../store/useStore.js";
+import TradeResearchModal from "./TradeResearchModal.jsx";
 
 const money = (n) => "$" + Math.round(n).toLocaleString();
 
 export default function LayersPanel({ rollup }) {
   const { activeId, setActive, toggleLayer, addLayer } = useStore();
+  const [researchOpen, setResearchOpen] = useState(false);
   return (
     <div className="p-3">
       <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 mb-2">
         <Layers size={14} /> TRADE LAYERS
+        <button onClick={() => setResearchOpen(true)} title="Research related trades"
+          className="flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-violet-900/50 hover:bg-violet-800/60 text-violet-200">
+          <Sparkles size={11} /> Research
+        </button>
         <button onClick={() => addLayer()} title="New layer" aria-label="New layer"
           className="ml-auto flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">
           <Plus size={12} /> New
@@ -40,6 +47,7 @@ export default function LayersPanel({ rollup }) {
           </div>
         ))}
       </div>
+      {researchOpen && <TradeResearchModal mode="takeoff" onClose={() => setResearchOpen(false)} />}
     </div>
   );
 }

@@ -204,7 +204,8 @@ export const useStore = create(
         }),
       addLocation: (name) =>
         set((s) => {
-          const locs = s.locations.map((l) =>
+          const baseLocs = s.locations?.length ? s.locations : _seedLocations;
+          const locs = baseLocs.map((l) =>
             l.id === s.activeLocationId ? { ...l, priceBook: JSON.parse(JSON.stringify(s.priceBook)) } : l
           );
           const loc = mkLocation(s.priceBook, name || "New location", 1);
@@ -514,6 +515,50 @@ export const useStore = create(
             added++;
           }
           return { layers };
+        });
+        return added;
+      },
+
+      // AI trade research — add priced assemblies (+ optional takeoff layers).
+      addResearchTrades: (trades, { bookOnly = false } = {}) => {
+        let added = 0;
+        set((s) => {
+          const pb = JSON.parse(JSON.stringify(s.priceBook));
+          const layers = [...s.layers];
+          const usedColors = new Set(layers.map((l) => l.color));
+
+          for (const t of trades || []) {
+            let asmKey = t.existingAsm && (pb[t.existingAsm] || ASSEMBLIES[t.existingAsm]) ? t.existingAsm : null;
+            if (!asmKey || t.materials?.length) {
+              asmKey = "tr" + uid();
+              pb[asmKey] = {
+                name: t.name,
+                unit: t.unit || "SF",
+                geom: t.geom || "area",
+                div: t.div || "Specialty",
+                materials: (t.materials?.length ? t.materials : [{ name: t.name, per: 1, waste: 0, u: t.unit || "SF", cost: 0, labor: 0, equip: 0 }]).map((m) => ({
+                  name: m.name,
+                  per: m.per ?? 1,
+                  waste: m.waste ?? 0,
+                  u: m.u || t.unit || "SF",
+                  cost: m.cost ?? 0,
+                  labor: m.labor ?? 0,
+                  equip: m.equip ?? 0,
+                })),
+              };
+            }
+
+            if (bookOnly) { added++; continue; }
+
+            const dup = layers.some((l) => l.asm === asmKey && l.name === t.name);
+            if (dup) continue;
+            const color = PALETTE.find((c) => !usedColors.has(c)) || PALETTE[layers.length % PALETTE.length];
+            usedColors.add(color);
+            layers.push({ id: "l" + uid(), name: t.name, color, asm: asmKey, visible: true });
+            added++;
+          }
+
+          return bookOnly ? withLocBook(pb)(s) : { ...withLocBook(pb)(s), layers };
         });
         return added;
       },

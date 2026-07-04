@@ -1,9 +1,10 @@
-import { useState, useRef, useMemo } from "react";
-import { BookOpen, RotateCcw, Layers, Plus, Trash2, Download, Upload, Search, FileJson, FileSpreadsheet, SlidersHorizontal, Sparkles, MapPin, X } from "lucide-react";
+import { useState, useRef, useMemo, useEffect } from "react";
+import { BookOpen, RotateCcw, Layers, Plus, Trash2, Download, Upload, Search, FileJson, FileSpreadsheet, SlidersHorizontal, Sparkles, MapPin, X, ChevronDown, ChevronRight } from "lucide-react";
 import { useStore } from "../store/useStore.js";
 import { unitBare, DEFAULT_BOOK_META } from "../lib/assemblies.js";
 import { exportPriceBookJson, exportPriceBookCsv, parsePriceBookFile } from "../lib/priceBook.js";
 import PriceResearchModal from "./PriceResearchModal.jsx";
+import TradeResearchModal from "./TradeResearchModal.jsx";
 
 const money2 = (n) => "$" + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const geomLabel = { area: "SF (area)", linear: "LF (linear)", count: "EA (count)" };
@@ -17,6 +18,10 @@ export default function PriceBookPage() {
   const [q, setQ] = useState("");
   const [menu, setMenu] = useState(false);
   const [researchOpen, setResearchOpen] = useState(false);
+  const [tradeResearchOpen, setTradeResearchOpen] = useState(false);
+  const [addLocOpen, setAddLocOpen] = useState(false);
+  const [newLocName, setNewLocName] = useState("");
+  const [expandedDiv, setExpandedDiv] = useState(null); // one CSI division open at a time
   const fileRef = useRef(null);
   const activeLoc = locations?.find((l) => l.id === activeLocationId) || locations?.[0];
   const overheadPct = bookMeta?.overheadPct ?? DEFAULT_BOOK_META.overheadPct;
@@ -36,6 +41,14 @@ export default function PriceBookPage() {
     return Object.entries(g).sort(([a], [b]) => a.localeCompare(b));
   }, [filtered, priceBook]);
 
+  // When searching, open the first matching division only.
+  useEffect(() => {
+    if (q.trim() && groups.length) setExpandedDiv(groups[0][0]);
+    else if (!q.trim()) setExpandedDiv(null);
+  }, [q, groups]);
+
+  const toggleDiv = (div) => setExpandedDiv((cur) => (cur === div ? null : div));
+
   const onImport = async (e) => {
     const f = e.target.files?.[0]; e.target.value = "";
     if (!f) return;
@@ -44,6 +57,15 @@ export default function PriceBookPage() {
   };
 
   const num = (v) => (parseFloat(v) || 0);
+
+  const submitNewLocation = (e) => {
+    e?.preventDefault();
+    const name = newLocName.trim();
+    if (!name) return;
+    addLocation(name);
+    setNewLocName("");
+    setAddLocOpen(false);
+  };
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
@@ -66,7 +88,8 @@ export default function PriceBookPage() {
             </div>
           )}
         </div>
-        <button onClick={() => setResearchOpen(true)} className="flex items-center gap-1.5 text-sm px-3 py-2 rounded bg-violet-800/80 hover:bg-violet-700 text-violet-100"><Sparkles size={15} /> Research</button>
+        <button onClick={() => setTradeResearchOpen(true)} className="flex items-center gap-1.5 text-sm px-3 py-2 rounded bg-violet-950 border border-violet-800/60 hover:bg-violet-900 text-violet-100"><Sparkles size={15} /> Find trades</button>
+        <button onClick={() => setResearchOpen(true)} className="flex items-center gap-1.5 text-sm px-3 py-2 rounded bg-violet-800/80 hover:bg-violet-700 text-violet-100"><Sparkles size={15} /> Update prices</button>
         <button onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 text-sm px-3 py-2 rounded bg-slate-800 hover:bg-slate-700"><Upload size={15} /> Import</button>
         <button onClick={() => confirm("Reset all prices to built-in defaults?") && resetPriceBook()} title="Reset to defaults" aria-label="Reset to defaults" className="flex items-center gap-1.5 text-sm px-2.5 py-2 rounded bg-slate-800 hover:bg-slate-700"><RotateCcw size={15} /></button>
         <input ref={fileRef} type="file" accept="application/json,.json,text/csv,.csv" className="hidden" onChange={onImport} />
@@ -93,10 +116,32 @@ export default function PriceBookPage() {
             )}
           </button>
         ))}
-        <button onClick={() => { const n = prompt("Location name (city / market):"); if (n?.trim()) addLocation(n.trim()); }}
-          className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full border border-dashed border-slate-600 text-slate-500 hover:border-brand hover:text-brand">
-          <Plus size={12} /> Add location
-        </button>
+        {addLocOpen ? (
+          <form onSubmit={submitNewLocation} className="flex items-center gap-1.5 pl-1">
+            <input
+              autoFocus
+              value={newLocName}
+              onChange={(e) => setNewLocName(e.target.value)}
+              onKeyDown={(e) => e.key === "Escape" && (setAddLocOpen(false), setNewLocName(""))}
+              placeholder="City / market"
+              aria-label="New location name"
+              className="text-xs px-2.5 py-1.5 rounded-full bg-slate-950 border border-brand text-slate-100 placeholder:text-slate-600 focus:outline-none w-36"
+            />
+            <button type="submit" disabled={!newLocName.trim()}
+              className="text-xs px-2.5 py-1.5 rounded-full bg-brand hover:bg-brand2 text-white font-medium disabled:opacity-40">
+              Add
+            </button>
+            <button type="button" onClick={() => { setAddLocOpen(false); setNewLocName(""); }}
+              className="p-1 rounded-full text-slate-500 hover:text-slate-200 hover:bg-slate-800" aria-label="Cancel">
+              <X size={12} />
+            </button>
+          </form>
+        ) : (
+          <button type="button" onClick={() => setAddLocOpen(true)}
+            className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full border border-dashed border-slate-600 text-slate-500 hover:border-brand hover:text-brand">
+            <Plus size={12} /> Add location
+          </button>
+        )}
       </div>
 
       {/* estimating settings — O&P global + active location factor */}
@@ -111,11 +156,30 @@ export default function PriceBookPage() {
         <div className="text-[11px] text-slate-500 mt-2">Prices below are <b className="text-slate-300">bare</b> for this location tab. Takeoff totals add +{overheadPct + profitPct}% O&amp;P and ×{locFactor.toFixed(2)} location factor.</div>
       </div>
 
-      <div className="max-w-4xl mx-auto w-full flex flex-col gap-5">
-        {groups.map(([div, ks]) => (
-          <div key={div}>
-            <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{div}</div>
-            <div className="flex flex-col gap-3">
+      <div className="max-w-4xl mx-auto w-full flex flex-col gap-2">
+        {groups.length > 0 && (
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px] text-slate-500">{groups.length} division{groups.length === 1 ? "" : "s"} · one open at a time</span>
+            {expandedDiv && (
+              <button type="button" onClick={() => setExpandedDiv(null)}
+                className="text-[11px] text-slate-400 hover:text-slate-200 px-2 py-1 rounded hover:bg-slate-800">
+                Close all
+              </button>
+            )}
+          </div>
+        )}
+        {groups.map(([div, ks]) => {
+          const open = expandedDiv === div;
+          return (
+          <div key={div} className="rounded-lg border border-slate-800 overflow-hidden">
+            <button type="button" onClick={() => toggleDiv(div)} aria-expanded={open}
+              className={`w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors ${open ? "bg-slate-800/80" : "bg-slate-900 hover:bg-slate-800/60"}`}>
+              {open ? <ChevronDown size={14} className="text-brand shrink-0" /> : <ChevronRight size={14} className="text-slate-500 shrink-0" />}
+              <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex-1">{div}</span>
+              <span className="text-[10px] text-slate-500 tabular-nums">{ks.length} asm</span>
+            </button>
+            {open && (
+            <div className="flex flex-col gap-3 p-3 pt-2 border-t border-slate-800 bg-slate-950/40">
               {ks.map((k) => {
                 const asm = priceBook[k];
                 return (
@@ -160,13 +224,15 @@ export default function PriceBookPage() {
                 );
               })}
             </div>
+            )}
           </div>
-        ))}
+        );})}
 
         <button onClick={addAssembly} className="flex items-center justify-center gap-1.5 text-sm text-slate-300 border border-dashed border-slate-700 rounded-lg py-3 hover:border-brand hover:text-brand"><Plus size={16} /> Add assembly</button>
         <p className="text-xs text-slate-500">Switch location tabs for market-specific books. Use <b className="text-slate-400">Research</b> to AI-update prices for a city (reasoning model). Export/import JSON or CSV per location.</p>
       </div>
       {researchOpen && <PriceResearchModal onClose={() => setResearchOpen(false)} />}
+      {tradeResearchOpen && <TradeResearchModal mode="pricebook" onClose={() => setTradeResearchOpen(false)} />}
     </div>
   );
 }
