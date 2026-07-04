@@ -340,6 +340,16 @@ export const useStore = create(
 
       deleteSel: () => set((s) => ({ traces: s.traces.filter((t) => t.id !== s.selId), selId: null })),
 
+      // quick-action: clone the selected trace with a small offset and select it
+      duplicateTrace: (id) =>
+        set((s) => {
+          const t = s.traces.find((x) => x.id === id);
+          if (!t) return {};
+          const pts = t.pts.map((p) => ({ x: Math.min(s.bg.w, p.x + 14), y: Math.min(s.bg.h, p.y + 14) }));
+          const nt = { ...t, id: uid(), pts };
+          return { traces: [...s.traces, nt], selId: nt.id };
+        }),
+
       clearAll: () =>
         set((s) => ({ traces: s.traces.filter((t) => (t.page ?? 0) !== s.activePage), draft: [], selId: null })),
 

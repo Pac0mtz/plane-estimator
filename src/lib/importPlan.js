@@ -59,7 +59,9 @@ const isPdf = (f) => f.type === "application/pdf" || /\.pdf$/i.test(f.name);
 const isImage = (f) => /^image\//.test(f.type) || /\.(png|jpe?g|webp|gif|bmp|tiff?)$/i.test(f.name);
 
 // store = useStore.getState(); onError(message) surfaces problems to the UI.
-export async function importPlanFile(file, store, onError = (m) => alert(m)) {
+// NOT alert(): a blocking dialog from a background import freezes the whole
+// page (and any automation driving it). Surface it in the AI/status panel.
+export async function importPlanFile(file, store, onError = (m) => store.setAiError(m)) {
   if (!file) return;
 
   if (isPdf(file)) {

@@ -8,7 +8,7 @@ import { importPlanFile, ACCEPT } from "../lib/importPlan.js";
 import { extractPageVectors } from "../lib/pdf.js";
 import { polylineLengthPx, buildRunIndex, nearestSegment, growRun, snapPoint } from "../lib/vector.js";
 import { floodRoom } from "../lib/floodArea.js";
-import { Maximize, UploadCloud, Eye, EyeOff } from "lucide-react";
+import { Maximize, UploadCloud, Eye, EyeOff, Trash2, Ban, Copy, Check, Undo2, X, RotateCcw } from "lucide-react";
 import HoverCard from "./HoverCard.jsx";
 import CanvasSearch from "./CanvasSearch.jsx";
 
@@ -305,10 +305,27 @@ export default function PlanCanvas() {
             const hp = { onClick: pick, onTap: pick, listening: true, ...hoverProps("trace", tr) };
             const dash = excluded ? [10 * inv, 6 * inv] : undefined;
 
+            // vertex handles: drag to move, double-click to remove the point.
+            // Dense machine-made traces (flood fills, snapped runs) would drown
+            // in handles — draw those small, and skip midpoints entirely.
+            const minPts = tr.type === "area" ? 3 : 2;
+            const dense = tr.pts.length > 20;
             const handles = sel && tool === "select" && tr.type !== "count" ? tr.pts.map((pt, vi) => (
-              <Circle key={"h" + vi} x={pt.x} y={pt.y} radius={6 * inv} fill="#fff" stroke={color} strokeWidth={2 * inv}
-                draggable onDragMove={(e) => { e.cancelBubble = true; const np = tr.pts.map((q, qi) => (qi === vi ? { x: e.target.x(), y: e.target.y() } : q)); s.updateTracePts(tr.id, np); }} />
+              <Circle key={"h" + vi} x={pt.x} y={pt.y} radius={(dense ? 3 : 6) * inv} fill="#fff" stroke={color} strokeWidth={(dense ? 1.25 : 2) * inv}
+                draggable onDragMove={(e) => { e.cancelBubble = true; const np = tr.pts.map((q, qi) => (qi === vi ? { x: e.target.x(), y: e.target.y() } : q)); s.updateTracePts(tr.id, np); }}
+                onDblClick={(e) => { e.cancelBubble = true; if (tr.pts.length > minPts) s.updateTracePts(tr.id, tr.pts.filter((_, qi) => qi !== vi)); }} />
             )) : null;
+            // midpoint handles: click to insert a vertex there (then drag it)
+            const midCount = dense ? 0 : tr.type === "area" ? tr.pts.length : tr.pts.length - 1;
+            const midHandles = sel && tool === "select" && tr.type !== "count" ? Array.from({ length: midCount }, (_, vi) => {
+              const a = tr.pts[vi], b = tr.pts[(vi + 1) % tr.pts.length];
+              const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+              return (
+                <Circle key={"mh" + vi} x={mx} y={my} radius={4 * inv} fill="#0f172a" stroke={color} strokeWidth={1.5 * inv} opacity={0.9}
+                  onClick={(e) => { e.cancelBubble = true; const np = [...tr.pts]; np.splice(vi + 1, 0, { x: mx, y: my }); s.updateTracePts(tr.id, np); }}
+                  onTap={(e) => { e.cancelBubble = true; const np = [...tr.pts]; np.splice(vi + 1, 0, { x: mx, y: my }); s.updateTracePts(tr.id, np); }} />
+              );
+            }) : null;
 
             const showChip = labelsOn || emph;
             if (tr.type === "area") {
@@ -321,6 +338,7 @@ export default function PlanCanvas() {
                       stroke={hot ? "#fff" : color} strokeWidth={(emph ? 3 : 2) * inv} dash={dash} />
                     {showChip && <Chip x={c.x} y={c.y} color={color} inv={inv} text={label} center />}
                   </Group>
+                  {midHandles}
                   {handles}
                 </Group>
               );
@@ -334,6 +352,7 @@ export default function PlanCanvas() {
                       lineCap="round" lineJoin="round" hitStrokeWidth={14 * inv} dash={dash} />
                     {showChip && <Chip x={mid.x} y={mid.y} color={color} inv={inv} text={excluded ? "excluded" : `${traceQty(tr, ppf).toFixed(1)} LF`} center />}
                   </Group>
+                  {midHandles}
                   {handles}
                 </Group>
               );
@@ -482,6 +501,57 @@ export default function PlanCanvas() {
           {toast}
         </div>
       )}
+
+      {/* quick actions on the selected trace — Exclude / Duplicate / Delete
+          right where you're working, instead of hunting through panels */}
+      {(() => {
+        if (tool !== "select") return null;
+        const tr = pageTraces.find((t) => t.id === selId);
+        if (!tr) return null;
+        let minY = Infinity, minX = Infinity, maxX = -Infinity;
+        for (const p of tr.pts) { if (p.y < minY) minY = p.y; if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; }
+        const sx = view.x + ((minX + maxX) / 2) * view.scale;
+        const sy = view.y + minY * view.scale;
+        const left = Math.max(8, Math.min(size.w - 150, sx - 70));
+        const top = Math.max(8, sy - 46);
+        const QA = ({ icon: I, label, tone, onClick }) => (
+          <button onClick={onClick} title={label} aria-label={label}
+            className={`w-8 h-8 flex items-center justify-center rounded-md hover:bg-slate-700 ${tone || "text-slate-200"}`}>
+            <I size={15} />
+          </button>
+        );
+        return (
+          <div className="absolute z-40 flex items-center gap-0.5 rounded-lg bg-slate-900/95 border border-slate-700 p-0.5 shadow-xl"
+            style={{ left, top }}>
+            <QA icon={tr.excluded ? RotateCcw : Ban} label={tr.excluded ? "Include in takeoff" : "Exclude from takeoff"}
+              tone={tr.excluded ? "text-emerald-300" : "text-amber-300"} onClick={() => s.toggleExclude(tr.id)} />
+            <QA icon={Copy} label="Duplicate" onClick={() => s.duplicateTrace(tr.id)} />
+            <QA icon={Trash2} label="Delete (⌫)" tone="text-rose-300" onClick={() => { s.setSel(tr.id); s.deleteSel(); setPinned(null); }} />
+            <div className="w-px h-5 bg-slate-700" />
+            <QA icon={X} label="Deselect (Esc)" tone="text-slate-400" onClick={() => { s.setSel(null); setPinned(null); }} />
+          </div>
+        );
+      })()}
+
+      {/* quick actions while drawing — Finish / Undo / Cancel at the pen tip */}
+      {(tool === "draw" || tool === "exclude") && draft.length > 0 && (() => {
+        const last = draft[draft.length - 1];
+        const sx = view.x + last.x * view.scale, sy = view.y + last.y * view.scale;
+        const left = Math.max(8, Math.min(size.w - 140, sx + 14));
+        const top = Math.max(8, Math.min(size.h - 44, sy + 14));
+        const need = tool === "exclude" || s.activeGeom() === "area" ? 3 : 2;
+        const ok = draft.length >= need;
+        return (
+          <div className="absolute z-40 flex items-center gap-0.5 rounded-lg bg-slate-900/95 border border-slate-700 p-0.5 shadow-xl" style={{ left, top }}>
+            <button onClick={s.finishDraft} disabled={!ok} title={ok ? "Finish (Enter)" : `Need ${need} points`}
+              className={`h-8 px-2.5 flex items-center gap-1 rounded-md text-[12px] font-medium ${ok ? "bg-emerald-700 hover:bg-emerald-600 text-white" : "text-slate-600"}`}>
+              <Check size={14} /> Finish
+            </button>
+            <button onClick={s.undoPoint} title="Undo point" aria-label="Undo point" className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-slate-700 text-slate-200"><Undo2 size={14} /></button>
+            <button onClick={() => s.setTool(tool)} title="Cancel (Esc)" aria-label="Cancel draft" className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-slate-700 text-slate-400"><X size={14} /></button>
+          </div>
+        );
+      })()}
       {roomBusy && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 px-3 py-2 rounded-lg bg-slate-900/95 border border-slate-700 text-[12px] text-cyan-300 shadow-lg">
           Filling room…
