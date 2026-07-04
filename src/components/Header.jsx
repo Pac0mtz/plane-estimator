@@ -1,4 +1,4 @@
-import { Upload, Download, RotateCcw, Loader2, MessageSquareText, Ruler } from "lucide-react";
+import { Upload, FileText, RotateCcw, Loader2, MessageSquareText, Ruler } from "lucide-react";
 import { useStore } from "../store/useStore.js";
 import { useRef, useState } from "react";
 import { importPlanFile, ACCEPT } from "../lib/importPlan.js";
@@ -64,7 +64,7 @@ export default function Header({ onExport, projectName, assistantOpen, onToggleA
         {!projectName && <HBtn icon={RotateCcw} label="Demo" onClick={s.resetDemo} title="Reset to demo plan" show="xl" />}
         <HBtn icon={Upload} label={busy ? "Reading…" : "Upload"} onClick={() => fileRef.current?.click()} disabled={busy} spin={busy}
           title="Upload a PDF or image plan" show="md" />
-        <HBtn icon={Download} label="Export" tone="primary" onClick={onExport} title="Export proposal / CSV" show="md" />
+        <HBtn icon={FileText} label="Proposal" tone="primary" onClick={onExport} title="Generate proposal PDF or CSV" show="md" />
       </div>
 
       <input ref={fileRef} type="file" accept={ACCEPT} className="hidden" onChange={onFile} />

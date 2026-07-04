@@ -11,6 +11,7 @@ const money = (n) => "$" + Math.round(n).toLocaleString();
 export default function ExportModal({ rollup, grand, onClose }) {
   const project = useStore((s) => s.activeProject());
   const client = useStore((s) => s.clientOf(project));
+  const pricing = useStore((s) => s.pricingSettings());
 
   const priced = rollup.filter((r) => r.qty > 0);
   const [included, setIncluded] = useState(() => new Set(priced.map((r) => r.layer.id)));
@@ -24,7 +25,7 @@ export default function ExportModal({ rollup, grand, onClose }) {
   const total = selected.reduce((s, r) => s + r.cost, 0);
   const csv = useMemo(() => buildCsv(selected, total), [selected, total]);
 
-  const genPdf = () => exportProposalPdf({ rollup: selected, grand: total, project, client, title, preparedBy, notes });
+  const genPdf = () => exportProposalPdf({ rollup: selected, grand: total, project, client, title, preparedBy, notes, pricing });
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-6 z-50" onClick={onClose}>
@@ -60,11 +61,15 @@ export default function ExportModal({ rollup, grand, onClose }) {
         <label className="flex flex-col gap-1 mb-3"><span className="text-xs text-slate-400">Notes & terms</span>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="input resize-y" /></label>
 
+        <div className="text-[11px] text-slate-500 mb-3">
+          Pricing: {pricing?.location} · ×{(pricing?.locationFactor ?? 1).toFixed(2)} location · +{(pricing?.overheadPct || 0) + (pricing?.profitPct || 0)}% O&amp;P
+        </div>
+
         <div className="flex items-center gap-3">
           <div className="text-sm text-slate-400">Proposal total <b className="text-emerald-400 text-lg ml-1">{money(total)}</b></div>
           <div className="flex-1" />
           <button onClick={() => download("planforge-takeoff.csv", csv)} className="flex items-center gap-1.5 text-sm px-3 py-2 rounded bg-slate-800 hover:bg-slate-700"><FileSpreadsheet size={15} /> CSV</button>
-          <button onClick={genPdf} disabled={selected.length === 0} className="flex items-center gap-1.5 text-sm px-3 py-2 rounded bg-brand hover:bg-brand2 font-medium disabled:opacity-50"><FileText size={15} /> Generate proposal PDF</button>
+          <button onClick={genPdf} disabled={selected.length === 0} className="flex items-center gap-1.5 text-sm px-3 py-2 rounded bg-brand hover:bg-brand2 font-medium disabled:opacity-50"><FileText size={15} /> Download PDF</button>
         </div>
       </div>
     </div>

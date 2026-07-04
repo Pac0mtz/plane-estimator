@@ -9,7 +9,7 @@ const money = (n) => "$" + Math.round(n).toLocaleString();
 const NAVY = [10, 37, 64];
 const BRAND = [47, 127, 209];
 
-export function exportProposalPdf({ rollup, grand, project, client, title, preparedBy, notes }) {
+export function exportProposalPdf({ rollup, grand, project, client, title, preparedBy, notes, pricing = {} }) {
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   const W = doc.internal.pageSize.getWidth();
   const M = 48;
@@ -110,7 +110,10 @@ export function exportProposalPdf({ rollup, grand, project, client, title, prepa
   // footer note
   doc.setFontSize(8);
   doc.setTextColor(150, 150, 150);
-  doc.text("Material + labor + equipment, incl. overhead & profit and location factor · NW-Ohio estimate — verify against supplier quotes", M, doc.internal.pageSize.getHeight() - 28);
+  const onp = (pricing.overheadPct || 0) + (pricing.profitPct || 0);
+  const loc = pricing.location || "Local market";
+  const factor = pricing.locationFactor ?? 1;
+  doc.text(`Material + labor + equipment · +${onp}% O&P · ${loc} ×${factor.toFixed(2)} — verify against supplier quotes`, M, doc.internal.pageSize.getHeight() - 28);
 
   const safe = (project?.name || "takeoff").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
   doc.save(`planforge-${safe}.pdf`);

@@ -20,6 +20,8 @@ import { parseSheetIndex, detectSheet, guessSheetNo, disciplineOf } from "./plan
 import { opListToPolylines, usefulPolylines } from "./vector.js";
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+// Suppress harmless TrueType font warnings from CAD-exported PDFs (TT: undefined function).
+pdfjs.GlobalWorkerOptions.verbosity = 0;
 
 // Render caps — keep the raster crisp without blowing browser/memory limits.
 const TARGET_DPI = 200; // aim; actual is lower once caps bite on huge sheets
@@ -45,16 +47,19 @@ export function effectiveDpi(baseViewport) {
   return Math.round(scaleForPage(baseViewport) * PDF_POINTS_PER_INCH);
 }
 
-async function renderToCanvas(page, scale) {
+async function renderToCanvas(page, scale, onRenderPct) {
   const viewport = page.getViewport({ scale });
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(viewport.width);
   canvas.height = Math.round(viewport.height);
   const ctx = canvas.getContext("2d", { alpha: false });
-  // intent "print": display-intent rendering is scheduled on rAF, which never
-  // fires in a hidden/background tab — an import would hang forever if the
-  // user switches tabs. Print intent uses timeouts and renders anywhere.
-  await page.render({ canvasContext: ctx, viewport, intent: "print" }).promise;
+  const task = page.render({ canvasContext: ctx, viewport, intent: "print" });
+  if (onRenderPct) {
+    task.onProgress = ({ loaded, total }) => {
+      if (total > 0) onRenderPct(Math.round((loaded / total) * 100));
+    };
+  }
+  await task.promise;
   return canvas;
 }
 
@@ -86,7 +91,7 @@ async function decode(url) {
 // Open a PDF File and build a light per-page manifest (thumbnails only).
 // w/h are the FULL-res plan pixels each page WILL have, so takeoff scale and
 // quantities are computed against the real rendered dimensions.
-export async function openPdf(file, { thumbDim = 160, onProgress } = {}) {
+export async function openPdf(file, { thumbDim = 256, onProgress } = {}) {
   closePdf();
   const report = (stage, page, total) =>
     onProgress && onProgress({ stage, page, total, pct: total ? Math.round((page / total) * 100) : 0 });
@@ -95,7 +100,7 @@ export async function openPdf(file, { thumbDim = 160, onProgress } = {}) {
   const buf = await file.arrayBuffer();
 
   report("loading", 0, 0);
-  const task = pdfjs.getDocument({ data: buf });
+  const task = pdfjs.getDocument({ data: buf, verbosity: 0 });
   task.onProgress = ({ loaded, total }) => report("loading", loaded, total || loaded);
   _doc = await task.promise;
 
@@ -143,16 +148,40 @@ export async function openPdf(file, { thumbDim = 160, onProgress } = {}) {
   return { numPages, thumbs, sheetIndex };
 }
 
-// Render a single page at full (DPI-aware) resolution.
-// Returns { href, w, h, dpi, img } — href is a blob object URL.
-export async function renderPage(index) {
+// Re-render a page thumbnail at a specific pixel size (longest side).
+// Used by the sheet strip when the user enlarges the footer — sharper than
+// upscaling the 256 px import thumb.
+export async function renderThumb(index, thumbDim = 256) {
   if (!_doc) throw new Error("No PDF open");
   const page = await _doc.getPage(index + 1);
   const base = page.getViewport({ scale: 1 });
-  const canvas = await renderToCanvas(page, scaleForPage(base));
+  const scale = thumbDim / Math.max(base.width, base.height);
+  const canvas = await renderToCanvas(page, scale);
+  const url = canvas.toDataURL("image/webp", 0.72);
+  page.cleanup();
+  return url;
+}
+
+// Render a single page at full (DPI-aware) resolution.
+// Returns { href, w, h, dpi, img } — href is a blob object URL.
+// onProgress({ stage, pct }) — stage: opening | rendering | encoding | decoding | done
+export async function renderPage(index, { onProgress } = {}) {
+  if (!_doc) throw new Error("No PDF open");
+  const report = (stage, pct) => onProgress?.({ stage, pct });
+  report("opening", 8);
+  const page = await _doc.getPage(index + 1);
+  const base = page.getViewport({ scale: 1 });
+  report("rendering", 12);
+  const canvas = await renderToCanvas(page, scaleForPage(base), (renderPct) => {
+    report("rendering", 12 + Math.round(renderPct * 0.68));
+  });
+  report("encoding", 84);
   const href = await canvasToObjectUrl(canvas);
   page.cleanup();
-  return { href, w: canvas.width, h: canvas.height, dpi: effectiveDpi(base), img: await decode(href) };
+  report("decoding", 94);
+  const img = await decode(href);
+  report("done", 100);
+  return { href, w: canvas.width, h: canvas.height, dpi: effectiveDpi(base), img };
 }
 
 // STRATEGY 2 SEAM — re-render a page at an explicit scale (e.g. current Konva

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Sparkles, Check, X, CheckCheck, KeyRound, AlertTriangle, Ruler } from "lucide-react";
+import { Sparkles, Check, X, CheckCheck, KeyRound, AlertTriangle } from "lucide-react";
 import { useStore } from "../store/useStore.js";
 import { ASSEMBLIES } from "../lib/assemblies.js";
 import { hasKey, setKey } from "../lib/aiDetect.js";
@@ -18,22 +18,9 @@ export default function AiReviewPanel() {
   const hasSample = suggestions.some((s) => s.sample);
   const isVector = suggestions.some((s) => s.vector);
   const scheduleTrades = planSummary?.trades?.length ? planSummary.trades : null;
-  if (!hasSuggestions && !aiError && !showKey) {
-    // takeoff guide — the reliable, vision-free workflow
-    return (
-      <div className="px-3 pt-3">
-        <div className="rounded bg-slate-900 border border-slate-800 p-2.5 text-[11px] text-slate-400 space-y-1.5">
-          <div className="flex items-center gap-1.5 text-slate-200 font-semibold">
-            <Ruler size={13} className="text-brand" /> Take off from real geometry
-          </div>
-          <div><b className="text-slate-300">1. Read dimensions</b> — sets exact scale from the plan's printed dimensions.</div>
-          <div><b className="text-slate-300">2. Measure wall</b> — hover any wall/line for its exact length; click to add it to a layer.</div>
-          <div className="text-slate-500">The <b className="text-slate-400">Assistant</b> reads schedules &amp; trades from the sheet.{" "}
-            <button onClick={() => setShowKey(true)} className="text-violet-300 underline">{hasKey() ? "change key" : "add OpenAI key"}</button></div>
-        </div>
-      </div>
-    );
-  }
+
+  // Only show when there's something to act on — keeps the analysis panel compact.
+  if (!hasSuggestions && !aiError && !showKey) return null;
 
   return (
     <div className="px-3 pt-3">

@@ -17,7 +17,7 @@ export const PALETTE = [
   "#f472b6", "#a3e635", "#fb923c", "#38bdf8", "#c084fc", "#f87171", "#34d399", "#facc15",
 ];
 
-const START_LAYERS = [
+export const START_LAYERS = [
   { id: "l1", name: "Thin Brick", color: "#e0533d", asm: "brick", visible: true },
   { id: "l2", name: "EIFS", color: "#3d7fe0", asm: "eifs", visible: true },
   { id: "l3", name: "Drywall Partitions", color: "#2fae6a", asm: "drywall", visible: true },
@@ -41,6 +41,23 @@ const freshTakeoff = (trades) => ({
 // deep clone the built-in catalog so the Price Book is independently editable
 const clonePriceBook = () => JSON.parse(JSON.stringify(ASSEMBLIES));
 
+const mkLocation = (book, name, factor, id) => ({
+  id: id || uid(),
+  name: name || DEFAULT_BOOK_META.location,
+  locationFactor: factor ?? DEFAULT_BOOK_META.locationFactor,
+  priceBook: JSON.parse(JSON.stringify(book || clonePriceBook())),
+});
+
+const _seedBook = clonePriceBook();
+const _seedLocations = [mkLocation(_seedBook, DEFAULT_BOOK_META.location, DEFAULT_BOOK_META.locationFactor, "default")];
+
+const withLocBook = (priceBook) => (s) => ({
+  priceBook,
+  locations: (s.locations || _seedLocations).map((l) =>
+    l.id === s.activeLocationId ? { ...l, priceBook: JSON.parse(JSON.stringify(priceBook)) } : l
+  ),
+});
+
 export const useStore = create(
   persist(
     (set, get) => ({
@@ -49,10 +66,17 @@ export const useStore = create(
       clients: [],
       projects: [],
       activeProjectId: null,
-      priceBook: clonePriceBook(),
-      bookMeta: { ...DEFAULT_BOOK_META }, // location factor + overhead/profit
+      priceBook: _seedBook,
+      bookMeta: { overheadPct: DEFAULT_BOOK_META.overheadPct, profitPct: DEFAULT_BOOK_META.profitPct },
+      locations: _seedLocations,
+      activeLocationId: "default",
       setBookMeta: (patch) => set((s) => ({ bookMeta: { ...s.bookMeta, ...patch } })),
       importProgress: null, // { stage, page, total, pct } while a PDF imports
+      importPreview: null, // PDF preview modal state (see importPlan.js)
+      setImportPreview: (importPreview) => set({ importPreview }),
+      patchImportPreview: (patch) =>
+        set((s) => (s.importPreview ? { importPreview: { ...s.importPreview, ...patch } } : {})),
+      clearImportPreview: () => set({ importPreview: null }),
 
       setView: (view) => {
         get().saveActiveProject();
@@ -143,49 +167,107 @@ export const useStore = create(
       clientOf: (project) => get().clients.find((c) => c.id === project?.clientId) || null,
 
       // -------------------------------------------------------------- price book
+      activeLocation: () => {
+        const s = get();
+        return s.locations.find((l) => l.id === s.activeLocationId) || s.locations[0] || null;
+      },
+      pricingSettings: () => {
+        const s = get();
+        const loc = s.locations.find((l) => l.id === s.activeLocationId) || s.locations[0];
+        return {
+          ...s.bookMeta,
+          location: loc?.name || DEFAULT_BOOK_META.location,
+          locationFactor: loc?.locationFactor ?? 1,
+        };
+      },
+      setActiveLocation: (id) =>
+        set((s) => {
+          const locs = s.locations.map((l) =>
+            l.id === s.activeLocationId ? { ...l, priceBook: JSON.parse(JSON.stringify(s.priceBook)) } : l
+          );
+          const next = locs.find((l) => l.id === id);
+          if (!next) return {};
+          return { locations: locs, activeLocationId: id, priceBook: JSON.parse(JSON.stringify(next.priceBook)) };
+        }),
+      addLocation: (name) =>
+        set((s) => {
+          const locs = s.locations.map((l) =>
+            l.id === s.activeLocationId ? { ...l, priceBook: JSON.parse(JSON.stringify(s.priceBook)) } : l
+          );
+          const loc = mkLocation(s.priceBook, name || "New location", 1);
+          return { locations: [...locs, loc], activeLocationId: loc.id, priceBook: JSON.parse(JSON.stringify(loc.priceBook)) };
+        }),
+      updateActiveLocation: (patch) =>
+        set((s) => ({ locations: s.locations.map((l) => (l.id === s.activeLocationId ? { ...l, ...patch } : l)) })),
+      removeLocation: (id) =>
+        set((s) => {
+          if (s.locations.length <= 1) return {};
+          const locs = s.locations.filter((l) => l.id !== id);
+          if (s.activeLocationId === id) {
+            const next = locs[0];
+            return { locations: locs, activeLocationId: next.id, priceBook: JSON.parse(JSON.stringify(next.priceBook)) };
+          }
+          return { locations: locs };
+        }),
+      applyResearchedBook: (book, { name, locationFactor } = {}) =>
+        set((s) => ({
+          priceBook: book,
+          locations: s.locations.map((l) =>
+            l.id === s.activeLocationId
+              ? {
+                  ...l,
+                  priceBook: JSON.parse(JSON.stringify(book)),
+                  ...(name ? { name } : {}),
+                  ...(typeof locationFactor === "number" ? { locationFactor } : {}),
+                }
+              : l
+          ),
+        })),
       updateMaterial: (asmKey, idx, patch) =>
         set((s) => {
           const pb = { ...s.priceBook };
           const asm = { ...pb[asmKey], materials: pb[asmKey].materials.map((m, i) => (i === idx ? { ...m, ...patch } : m)) };
           pb[asmKey] = asm;
-          return { priceBook: pb };
+          return withLocBook(pb)(s);
         }),
       updateAssembly: (asmKey, patch) =>
-        set((s) => ({ priceBook: { ...s.priceBook, [asmKey]: { ...s.priceBook[asmKey], ...patch } } })),
+        set((s) => withLocBook({ ...s.priceBook, [asmKey]: { ...s.priceBook[asmKey], ...patch } })(s)),
       addMaterial: (asmKey) =>
         set((s) => {
           const asm = s.priceBook[asmKey];
           const u = asm.geom === "linear" ? "LF" : asm.geom === "count" ? "ea" : "SF";
-          return { priceBook: { ...s.priceBook, [asmKey]: { ...asm, materials: [...asm.materials, { name: "New material", per: 1, waste: 0, u, cost: 0 }] } } };
+          const pb = { ...s.priceBook, [asmKey]: { ...asm, materials: [...asm.materials, { name: "New material", per: 1, waste: 0, u, cost: 0 }] } };
+          return withLocBook(pb)(s);
         }),
       removeMaterial: (asmKey, idx) =>
-        set((s) => ({ priceBook: { ...s.priceBook, [asmKey]: { ...s.priceBook[asmKey], materials: s.priceBook[asmKey].materials.filter((_, i) => i !== idx) } } })),
+        set((s) => withLocBook({ ...s.priceBook, [asmKey]: { ...s.priceBook[asmKey], materials: s.priceBook[asmKey].materials.filter((_, i) => i !== idx) } })(s)),
       addAssembly: () =>
         set((s) => {
           const key = "custom" + uid();
-          return { priceBook: { ...s.priceBook, [key]: { name: "New assembly", unit: "SF", geom: "area", materials: [{ name: "New material", per: 1, waste: 0, u: "SF", cost: 0 }] } } };
+          return withLocBook({ ...s.priceBook, [key]: { name: "New assembly", unit: "SF", geom: "area", materials: [{ name: "New material", per: 1, waste: 0, u: "SF", cost: 0 }] } })(s);
         }),
       removeAssembly: (asmKey) =>
         set((s) => {
           const pb = { ...s.priceBook };
           delete pb[asmKey];
-          return { priceBook: pb };
+          return withLocBook(pb)(s);
         }),
       importPriceBook: (obj) => {
-        // validate: object of { name, unit, geom, materials:[] }
         if (!obj || typeof obj !== "object") return false;
         const clean = {};
         for (const [k, v] of Object.entries(obj)) {
           if (v && Array.isArray(v.materials) && v.name) clean[k] = v;
         }
         if (!Object.keys(clean).length) return false;
-        set({ priceBook: clean });
+        set(withLocBook(clean));
         return true;
       },
-      resetPriceBook: () => set({ priceBook: clonePriceBook() }),
+      resetPriceBook: () => set((s) => withLocBook(clonePriceBook())(s)),
 
       // --------------------------------------------------------- import progress
       setImportProgress: (importProgress) => set({ importProgress }),
+      pageLoad: null, // { page, stage, pct, label } while a sheet renders on the canvas
+      setPageLoad: (pageLoad) => set({ pageLoad }),
 
       // =============================== TAKEOFF (live working-set) ===============
       bg: { type: "demo", w: DEMO.w, h: DEMO.h },
@@ -212,8 +294,10 @@ export const useStore = create(
       // collapsible takeoff panels
       showTools: true,
       showAnalysis: true,
+      showSheets: true,
       toggleTools: () => set((s) => ({ showTools: !s.showTools })),
       toggleAnalysis: () => set((s) => ({ showAnalysis: !s.showAnalysis })),
+      toggleSheets: () => set((s) => ({ showSheets: !s.showSheets })),
       setPlanSummary: (planSummary) => set({ planSummary }),
 
       tool: "select", // select | pan | calibrate | draw | rect | measure
@@ -380,6 +464,18 @@ export const useStore = create(
             activeId: s.activeId === id ? layers[0]?.id || null : s.activeId,
           };
         }),
+
+      // replace all layers with one per assembly key (import trade picker).
+      setLayersFromAsms: (asms) => {
+        const s = get();
+        const keys = [...new Set((asms || []).filter(Boolean))];
+        if (!keys.length) return;
+        const layers = keys.map((asm, i) => {
+          const def = s.priceBook[asm] || ASSEMBLIES[asm];
+          return { id: "l" + uid(), name: def?.name || asm, color: PALETTE[i % PALETTE.length], asm, visible: true };
+        });
+        set({ layers, activeId: layers[0]?.id || null });
+      },
 
       // create layers for a set of assembly keys (from the import trade picker),
       // skipping any that already have a layer. Returns count added.
@@ -625,29 +721,56 @@ export const useStore = create(
     }),
     {
       name: "plan-forge-v1",
-      version: 4,
+      version: 5,
       // v<3 (pre labor/equipment model) rebuilds the book; v3->4 MERGES any new
       // built-in assemblies (fencing, windows) in without wiping price edits.
+      // v4->5 adds saved location tabs (each with its own price book + factor).
       migrate: (state, ver) => {
         if (ver < 3) {
           state.priceBook = clonePriceBook();
-          state.bookMeta = { ...DEFAULT_BOOK_META };
+          state.bookMeta = { overheadPct: DEFAULT_BOOK_META.overheadPct, profitPct: DEFAULT_BOOK_META.profitPct };
         } else if (ver < 4) {
           const base = clonePriceBook();
           const pb = { ...(state.priceBook || {}) };
           for (const k of Object.keys(base)) if (!pb[k]) pb[k] = base[k];
           state.priceBook = pb;
         }
+        if (ver < 5) {
+          const pb = state.priceBook || clonePriceBook();
+          const meta = state.bookMeta || DEFAULT_BOOK_META;
+          state.locations = [mkLocation(pb, meta.location, meta.locationFactor, "default")];
+          state.activeLocationId = "default";
+          state.bookMeta = { overheadPct: meta.overheadPct ?? DEFAULT_BOOK_META.overheadPct, profitPct: meta.profitPct ?? DEFAULT_BOOK_META.profitPct };
+          state.priceBook = pb;
+        }
         return state;
       },
-      // on reload a project is active but its plan image is gone (not persisted);
-      // open it to the upload prompt instead of the demo backdrop.
       onRehydrateStorage: () => (state) => {
-        if (state && state.activeProjectId) {
+        if (!state) return;
+        if (state.activeProjectId) {
           state.bg = { type: "empty", w: DEMO.w, h: DEMO.h };
           state.pages = [EMPTY_PAGE];
           state.pageImgs = {};
           state.imgEl = null;
+        }
+        state.bookMeta = {
+          overheadPct: state.bookMeta?.overheadPct ?? DEFAULT_BOOK_META.overheadPct,
+          profitPct: state.bookMeta?.profitPct ?? DEFAULT_BOOK_META.profitPct,
+        };
+        if (!state.locations?.length) {
+          const pb = state.priceBook || clonePriceBook();
+          state.locations = [mkLocation(pb, DEFAULT_BOOK_META.location, DEFAULT_BOOK_META.locationFactor, "default")];
+          state.activeLocationId = "default";
+          state.priceBook = pb;
+        } else {
+          const active = state.locations.find((l) => l.id === state.activeLocationId) || state.locations[0];
+          state.priceBook = active.priceBook || state.priceBook || clonePriceBook();
+          state.activeLocationId = active.id;
+          state.locations = state.locations.map((l) => ({
+            ...l,
+            name: l.name || DEFAULT_BOOK_META.location,
+            locationFactor: l.locationFactor ?? DEFAULT_BOOK_META.locationFactor,
+          }));
         }
       },
       // vectors + records persist; rendered images (single or PDF pages) do not.
@@ -658,6 +781,10 @@ export const useStore = create(
         activeProjectId: s.activeProjectId,
         priceBook: s.priceBook,
         bookMeta: s.bookMeta,
+        locations: s.locations.map((l) =>
+          l.id === s.activeLocationId ? { ...l, priceBook: s.priceBook } : l
+        ),
+        activeLocationId: s.activeLocationId,
         // live working-set so a refresh keeps the current takeoff
         layers: s.layers,
         activeId: s.activeId,

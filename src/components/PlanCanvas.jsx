@@ -11,6 +11,7 @@ import { floodRoom } from "../lib/floodArea.js";
 import { Maximize, UploadCloud, Eye, EyeOff, Trash2, Ban, Copy, Check, Undo2, X, RotateCcw } from "lucide-react";
 import HoverCard from "./HoverCard.jsx";
 import CanvasSearch from "./CanvasSearch.jsx";
+import SheetLoadOverlay from "./SheetLoadOverlay.jsx";
 
 function hexToRgba(hex, a) {
   const n = parseInt(hex.slice(1), 16);
@@ -222,8 +223,17 @@ export default function PlanCanvas() {
   };
 
   const measFeet = (a, b) => {
+    if (!a || !b) return "";
     const d = Math.hypot(a.x - b.x, a.y - b.y);
-    return ppf ? `${(d / ppf).toFixed(1)} ft` : `${Math.round(d)} px`;
+    return ppf ? `${(d / ppf).toFixed(2)} ft` : `${Math.round(d)} px`;
+  };
+
+  const calibLenLabel = (a, b, ppfVal) => {
+    if (!a || !b) return "";
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    return ppfVal
+      ? `${Math.round(d)} px · ${(d / ppfVal).toFixed(2)} ft at current scale`
+      : `${Math.round(d)} px on sheet`;
   };
 
   // ---- hover inspect + search-to-locate ----
@@ -469,29 +479,33 @@ export default function PlanCanvas() {
           )}
 
           {/* measure (ruler) — non-destructive */}
-          {measure && (measure.b || hover) && (() => {
-            const end = measure.b || hover;
-            const mid = { x: (measure.a.x + end.x) / 2, y: (measure.a.y + end.y) / 2 };
-            return (
-              <Group listening={false}>
-                <Line points={[measure.a.x, measure.a.y, end.x, end.y]} stroke="#22d3ee" strokeWidth={2 * inv} dash={[8 * inv, 4 * inv]} />
-                <Circle x={measure.a.x} y={measure.a.y} radius={4 * inv} fill="#22d3ee" />
-                <Circle x={end.x} y={end.y} radius={4 * inv} fill="#22d3ee" />
-                <Label x={mid.x} y={mid.y} color="#22d3ee" inv={inv} text={measFeet(measure.a, end)} center />
-              </Group>
-            );
-          })()}
+          {tool === "measure" && measure?.a && (
+            <DimLine
+              a={measure.a}
+              b={measure.b || hover}
+              inv={inv}
+              color="#22d3ee"
+              accent="#0891b2"
+              draft={!measure.b}
+              label={measure.b || hover ? measFeet(measure.a, measure.b || hover) : null}
+            />
+          )}
 
-          {/* calibration */}
-          {calib.length > 0 && (
-            <Group listening={false}>
-              {calib.length === 2 && (
-                <Line points={flatPts(calib)} stroke="#f59e0b" strokeWidth={2 * inv} dash={[6 * inv, 4 * inv]} />
-              )}
-              {calib.map((p, i) => (
-                <Circle key={i} x={p.x} y={p.y} radius={5 * inv} fill="#f59e0b" stroke="#fff" strokeWidth={2 * inv} />
-              ))}
-            </Group>
+          {/* calibration — rubber-band while placing 2nd point */}
+          {tool === "calibrate" && calib.length > 0 && (
+            <DimLine
+              a={calib[0]}
+              b={calib.length === 2 ? calib[1] : hover}
+              inv={inv}
+              color="#fbbf24"
+              accent="#f59e0b"
+              draft={calib.length < 2}
+              label={
+                calib.length === 2 || (calib.length === 1 && hover)
+                  ? calibLenLabel(calib[0], calib.length === 2 ? calib[1] : hover, ppf)
+                  : null
+              }
+            />
           )}
         </Layer>
       </Stage>
@@ -500,6 +514,10 @@ export default function PlanCanvas() {
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 max-w-md px-3 py-2 rounded-lg bg-slate-900/95 border border-amber-700/60 text-[12px] text-amber-200 shadow-lg">
           {toast}
         </div>
+      )}
+
+      {(tool === "measure" || tool === "calibrate") && (
+        <MeasureToolHud tool={tool} measure={measure} calib={calib} hover={hover} ppf={ppf} measFeet={measFeet} />
       )}
 
       {/* quick actions on the selected trace — Exclude / Duplicate / Delete
@@ -559,6 +577,8 @@ export default function PlanCanvas() {
       )}
 
       {bg.type === "empty" && <UploadPrompt traceCount={traces.length} />}
+
+      <SheetLoadOverlay />
 
       {bg.type !== "empty" && <CanvasSearch traces={pageTraces} suggestions={suggestions} layerName={layerName} qtyText={qtyText} onLocate={locate} />}
 
@@ -622,7 +642,115 @@ function ZoomControls({ onFit, onIn, onOut, pct, labelsOn, onToggleLabels }) {
   );
 }
 
-// A solid rounded label chip — readable at any zoom, like the tool chips in
+// Architectural-style dimension line with endpoint ticks, drag rubber-band,
+// and anchored point markers. Used by Quick ruler + Calibrate.
+function DimLine({ a, b, inv, color, accent, draft, label }) {
+  if (!a || !b) {
+    if (a) return <Endpoint x={a.x} y={a.y} inv={inv} color={color} accent={accent} fixed />;
+    return null;
+  }
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 0.5) return <Endpoint x={a.x} y={a.y} inv={inv} color={color} accent={accent} fixed />;
+
+  const nx = -dy / len, ny = dx / len;
+  const tick = 9 * inv;
+  const tickA = [a.x + nx * tick, a.y + ny * tick, a.x - nx * tick, a.y - ny * tick];
+  const tickB = [b.x + nx * tick, b.y + ny * tick, b.x - nx * tick, b.y - ny * tick];
+  const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  const c = accent || color;
+
+  return (
+    <Group listening={false}>
+      <Line points={[a.x, a.y, b.x, b.y]} stroke={c} strokeWidth={7 * inv} opacity={draft ? 0.12 : 0.18} lineCap="round" />
+      <Line points={[a.x, a.y, b.x, b.y]} stroke={color} strokeWidth={2.5 * inv}
+        dash={draft ? [10 * inv, 6 * inv] : undefined} lineCap="round"
+        shadowColor={c} shadowBlur={draft ? 10 * inv : 5 * inv} shadowOpacity={0.55} />
+      <Line points={tickA} stroke={color} strokeWidth={2.5 * inv} lineCap="round" />
+      <Line points={tickB} stroke={color} strokeWidth={2.5 * inv} lineCap="round" />
+      <Endpoint x={a.x} y={a.y} inv={inv} color={color} accent={accent} fixed />
+      <Endpoint x={b.x} y={b.y} inv={inv} color={color} accent={accent} draft={draft} />
+      {label && <Chip x={mid.x} y={mid.y - 16 * inv} text={label} color={c} inv={inv} center />}
+    </Group>
+  );
+}
+
+// Fixed anchor = filled square + crosshair; draft end = open ring + crosshair.
+function Endpoint({ x, y, inv, color, accent, fixed, draft }) {
+  const r = (fixed ? 5 : 6) * inv;
+  const c = accent || color;
+  const arm = 10 * inv;
+  return (
+    <Group listening={false}>
+      <Line points={[x - arm, y, x + arm, y]} stroke={color} strokeWidth={1.25 * inv} opacity={0.85} />
+      <Line points={[x, y - arm, x, y + arm]} stroke={color} strokeWidth={1.25 * inv} opacity={0.85} />
+      {fixed ? (
+        <>
+          <Rect x={x - r} y={y - r} width={r * 2} height={r * 2} fill={c} stroke="#fff" strokeWidth={2 * inv}
+            shadowColor="#000" shadowBlur={4 * inv} shadowOpacity={0.35} />
+          <Circle x={x} y={y} radius={1.8 * inv} fill="#fff" />
+        </>
+      ) : (
+        <>
+          <Circle x={x} y={y} radius={r} stroke={color} strokeWidth={2.5 * inv}
+            dash={draft ? [4 * inv, 3 * inv] : undefined} fill={draft ? hexToRgba(color, 0.15) : c} />
+          <Circle x={x} y={y} radius={1.8 * inv} fill="#fff" />
+        </>
+      )}
+    </Group>
+  );
+}
+
+// Floating HUD while measure / calibrate is active — large live readout.
+function MeasureToolHud({ tool, measure, calib, hover, ppf, measFeet }) {
+  const isMeasure = tool === "measure";
+  const color = isMeasure ? "cyan" : "amber";
+  const border = isMeasure ? "border-cyan-700/60" : "border-amber-700/60";
+  const text = isMeasure ? "text-cyan-200" : "text-amber-200";
+  const badge = isMeasure ? "bg-cyan-950/80 text-cyan-300" : "bg-amber-950/80 text-amber-300";
+
+  let step = "", live = null;
+  if (isMeasure) {
+    if (!measure?.a) step = "Click the first point";
+    else if (!measure.b) {
+      step = "Drag to second point — click to set";
+      if (hover) live = measFeet(measure.a, hover);
+    } else {
+      step = "Click again to start a new measurement · Esc to exit";
+      live = measFeet(measure.a, measure.b);
+    }
+  } else {
+    if (calib.length === 0) step = "Click the first point of a known distance";
+    else if (calib.length === 1) {
+      step = "Drag to the second point — click to set";
+      if (hover) live = measFeet(calib[0], hover);
+    } else {
+      const px = Math.round(Math.hypot(calib[0].x - calib[1].x, calib[0].y - calib[1].y));
+      step = "Enter the real-world distance in the toolbar";
+      live = `${px} px on sheet`;
+    }
+  }
+
+  return (
+    <div className={`absolute top-14 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-1.5 pointer-events-none`}>
+      {live && (
+        <div className={`px-4 py-2 rounded-xl bg-slate-950/95 border ${border} shadow-xl`}>
+          <div className={`text-2xl font-bold tabular-nums tracking-tight ${text}`}>{live}</div>
+          {!ppf && isMeasure && measure?.a && !measure.b && (
+            <div className="text-[10px] text-slate-500 text-center mt-0.5">Set scale for feet</div>
+          )}
+        </div>
+      )}
+      <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/95 border ${border} text-[11px] ${text} shadow-lg`}>
+        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${badge}`}>
+          {isMeasure ? "Ruler" : "Calibrate"}
+        </span>
+        <span className="text-slate-300">{step}</span>
+      </div>
+    </div>
+  );
+}
+
 // Bluebeam/STACK. `dot` draws a small confidence badge on the left edge.
 function Chip({ x, y, text, color, inv, center, dot }) {
   const fs = 12 * inv;

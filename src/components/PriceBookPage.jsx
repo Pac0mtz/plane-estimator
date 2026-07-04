@@ -1,17 +1,27 @@
 import { useState, useRef, useMemo } from "react";
-import { BookOpen, RotateCcw, Layers, Plus, Trash2, Download, Upload, Search, FileJson, FileSpreadsheet, SlidersHorizontal } from "lucide-react";
+import { BookOpen, RotateCcw, Layers, Plus, Trash2, Download, Upload, Search, FileJson, FileSpreadsheet, SlidersHorizontal, Sparkles, MapPin, X } from "lucide-react";
 import { useStore } from "../store/useStore.js";
-import { unitBare } from "../lib/assemblies.js";
+import { unitBare, DEFAULT_BOOK_META } from "../lib/assemblies.js";
 import { exportPriceBookJson, exportPriceBookCsv, parsePriceBookFile } from "../lib/priceBook.js";
+import PriceResearchModal from "./PriceResearchModal.jsx";
 
 const money2 = (n) => "$" + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const geomLabel = { area: "SF (area)", linear: "LF (linear)", count: "EA (count)" };
 
 export default function PriceBookPage() {
-  const { priceBook, bookMeta, setBookMeta, updateMaterial, updateAssembly, addMaterial, removeMaterial, addAssembly, removeAssembly, importPriceBook, resetPriceBook } = useStore();
+  const {
+    priceBook, bookMeta, setBookMeta, updateMaterial, updateAssembly, addMaterial, removeMaterial,
+    addAssembly, removeAssembly, importPriceBook, resetPriceBook,
+    locations, activeLocationId, setActiveLocation, addLocation, updateActiveLocation, removeLocation,
+  } = useStore();
   const [q, setQ] = useState("");
   const [menu, setMenu] = useState(false);
+  const [researchOpen, setResearchOpen] = useState(false);
   const fileRef = useRef(null);
+  const activeLoc = locations?.find((l) => l.id === activeLocationId) || locations?.[0];
+  const overheadPct = bookMeta?.overheadPct ?? DEFAULT_BOOK_META.overheadPct;
+  const profitPct = bookMeta?.profitPct ?? DEFAULT_BOOK_META.profitPct;
+  const locFactor = activeLoc?.locationFactor ?? DEFAULT_BOOK_META.locationFactor;
 
   const keys = Object.keys(priceBook);
   const filtered = useMemo(() => {
@@ -56,21 +66,49 @@ export default function PriceBookPage() {
             </div>
           )}
         </div>
+        <button onClick={() => setResearchOpen(true)} className="flex items-center gap-1.5 text-sm px-3 py-2 rounded bg-violet-800/80 hover:bg-violet-700 text-violet-100"><Sparkles size={15} /> Research</button>
         <button onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 text-sm px-3 py-2 rounded bg-slate-800 hover:bg-slate-700"><Upload size={15} /> Import</button>
         <button onClick={() => confirm("Reset all prices to built-in defaults?") && resetPriceBook()} title="Reset to defaults" aria-label="Reset to defaults" className="flex items-center gap-1.5 text-sm px-2.5 py-2 rounded bg-slate-800 hover:bg-slate-700"><RotateCcw size={15} /></button>
-        <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" onChange={onImport} />
+        <input ref={fileRef} type="file" accept="application/json,.json,text/csv,.csv" className="hidden" onChange={onImport} />
       </div>
 
-      {/* estimating settings — O&P + location (city cost index) */}
+      {/* location tabs — each saved market has its own price book */}
+      <div className="max-w-4xl mx-auto w-full mb-3 flex flex-wrap items-center gap-1.5">
+        {(locations || []).map((loc) => (
+          <button key={loc.id} onClick={() => setActiveLocation(loc.id)}
+            className={`group flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-colors ${
+              loc.id === activeLocationId
+                ? "bg-brand/15 border-brand text-brand font-semibold"
+                : "bg-slate-900 border-slate-700 text-slate-400 hover:border-slate-600 hover:text-slate-200"
+            }`}>
+            <MapPin size={11} />
+            <span>{loc.name}</span>
+            <span className="text-[10px] opacity-70 tabular-nums">×{(loc.locationFactor ?? 1).toFixed(2)}</span>
+            {(locations || []).length > 1 && (
+              <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); if (confirm(`Delete location “${loc.name}”?`)) removeLocation(loc.id); }}
+                onKeyDown={(e) => e.key === "Enter" && e.stopPropagation()}
+                className="ml-0.5 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-rose-900/50 hover:text-rose-300">
+                <X size={10} />
+              </span>
+            )}
+          </button>
+        ))}
+        <button onClick={() => { const n = prompt("Location name (city / market):"); if (n?.trim()) addLocation(n.trim()); }}
+          className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full border border-dashed border-slate-600 text-slate-500 hover:border-brand hover:text-brand">
+          <Plus size={12} /> Add location
+        </button>
+      </div>
+
+      {/* estimating settings — O&P global + active location factor */}
       <div className="max-w-4xl mx-auto w-full mb-4 rounded-lg border border-slate-800 bg-slate-900 p-3">
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 mb-2"><SlidersHorizontal size={13} /> Estimating settings</div>
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 mb-2"><SlidersHorizontal size={13} /> Estimating settings · <span className="text-slate-300 normal-case">{activeLoc?.name}</span></div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <Setting label="Location"><input value={bookMeta.location} onChange={(e) => setBookMeta({ location: e.target.value })} className="input" /></Setting>
-          <Setting label="Location factor" hint="city cost index ÷ 100"><input type="number" step="0.01" value={bookMeta.locationFactor} onChange={(e) => setBookMeta({ locationFactor: num(e.target.value) })} className="input" /></Setting>
-          <Setting label="Overhead %"><input type="number" step="1" value={bookMeta.overheadPct} onChange={(e) => setBookMeta({ overheadPct: num(e.target.value) })} className="input" /></Setting>
-          <Setting label="Profit %"><input type="number" step="1" value={bookMeta.profitPct} onChange={(e) => setBookMeta({ profitPct: num(e.target.value) })} className="input" /></Setting>
+          <Setting label="Location name"><input value={activeLoc?.name || ""} onChange={(e) => updateActiveLocation({ name: e.target.value })} className="input" /></Setting>
+          <Setting label="Location factor" hint="city cost index ÷ 100"><input type="number" step="0.01" value={locFactor} onChange={(e) => updateActiveLocation({ locationFactor: num(e.target.value) })} className="input" /></Setting>
+          <Setting label="Overhead %"><input type="number" step="1" value={overheadPct} onChange={(e) => setBookMeta({ overheadPct: num(e.target.value) })} className="input" /></Setting>
+          <Setting label="Profit %"><input type="number" step="1" value={profitPct} onChange={(e) => setBookMeta({ profitPct: num(e.target.value) })} className="input" /></Setting>
         </div>
-        <div className="text-[11px] text-slate-500 mt-2">Prices below are <b className="text-slate-300">bare</b> (material + labor + equipment). Takeoff totals add +{bookMeta.overheadPct + bookMeta.profitPct}% O&amp;P and ×{bookMeta.locationFactor} location factor.</div>
+        <div className="text-[11px] text-slate-500 mt-2">Prices below are <b className="text-slate-300">bare</b> for this location tab. Takeoff totals add +{overheadPct + profitPct}% O&amp;P and ×{locFactor.toFixed(2)} location factor.</div>
       </div>
 
       <div className="max-w-4xl mx-auto w-full flex flex-col gap-5">
@@ -126,8 +164,9 @@ export default function PriceBookPage() {
         ))}
 
         <button onClick={addAssembly} className="flex items-center justify-center gap-1.5 text-sm text-slate-300 border border-dashed border-slate-700 rounded-lg py-3 hover:border-brand hover:text-brand"><Plus size={16} /> Add assembly</button>
-        <p className="text-xs text-slate-500">Every value is editable and reprices projects instantly. Export JSON to back up / share; import to load your own book. All costs are NW-Ohio estimates — verify against current supplier quotes.</p>
+        <p className="text-xs text-slate-500">Switch location tabs for market-specific books. Use <b className="text-slate-400">Research</b> to AI-update prices for a city (reasoning model). Export/import JSON or CSV per location.</p>
       </div>
+      {researchOpen && <PriceResearchModal onClose={() => setResearchOpen(false)} />}
     </div>
   );
 }

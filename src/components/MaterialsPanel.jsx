@@ -1,12 +1,19 @@
+import { FileText } from "lucide-react";
 import { useStore } from "../store/useStore.js";
 
 const money = (n) => "$" + Math.round(n).toLocaleString();
-const money2 = (n) => "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export default function MaterialsPanel({ rollup, grand }) {
-  const { activeId, bookMeta } = useStore();
-  const active = rollup.find((r) => r.layer.id === activeId);
-  const onp = (bookMeta?.overheadPct || 0) + (bookMeta?.profitPct || 0);
+export default function MaterialsPanel({ rollup, grand, onGenerateProposal }) {
+  const { activeId } = useStore();
+  const pricing = useStore((s) => s.pricingSettings());
+  const active = rollup.find((r) => r.layer.id === activeId) || rollup[0];
+  const onp = (pricing?.overheadPct || 0) + (pricing?.profitPct || 0);
+
+  if (!active) {
+    return (
+      <div className="px-3 pb-3 text-[11px] text-slate-500">Add a layer to see costs.</div>
+    );
+  }
 
   return (
     <>
@@ -42,8 +49,14 @@ export default function MaterialsPanel({ rollup, grand }) {
           <span className="text-2xl font-black text-emerald-400">{money(grand)}</span>
         </div>
         <div className="text-[10px] text-slate-500 mt-0.5">
-          Material + labor + equipment · +{onp}% O&amp;P · {bookMeta?.location} ×{(bookMeta?.locationFactor ?? 1).toFixed(2)}
+          Material + labor + equipment · +{onp}% O&amp;P · {pricing?.location} ×{(pricing?.locationFactor ?? 1).toFixed(2)}
         </div>
+        {onGenerateProposal && (
+          <button onClick={onGenerateProposal}
+            className="mt-2.5 w-full flex items-center justify-center gap-1.5 text-xs font-medium px-3 py-2 rounded-md bg-brand hover:bg-brand2 text-white">
+            <FileText size={14} /> Generate proposal
+          </button>
+        )}
       </div>
     </>
   );

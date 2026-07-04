@@ -1,13 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { Sparkles, Send, Loader2, X, FileText, Trash2, ClipboardList, Hammer, Layers2 } from "lucide-react";
 import { useStore } from "../store/useStore.js";
-import { renderPage } from "../lib/pdf.js";
-import { askAssistant, QUICK_ACTIONS } from "../lib/planAssistant.js";
+import { maybeAutoScale, loadPageIfNeeded } from "../lib/importPlan.js";
 import { hasKey } from "../lib/aiDetect.js";
+import { askAssistant, QUICK_ACTIONS } from "../lib/planAssistant.js";
 
 export default function AssistantPanel({ onClose }) {
   const s = useStore();
-  const { pages, activePage, sheetIndex, chat, chatBusy, planSummary, pushChat, setChatBusy, clearChat, setPage, setPageImage } = s;
+  const { pages, activePage, sheetIndex, chat, chatBusy, planSummary, pushChat, setChatBusy, clearChat, setPage } = s;
   const active = pages[activePage];
   const [input, setInput] = useState("");
   const scrollRef = useRef(null);
@@ -20,7 +20,7 @@ export default function AssistantPanel({ onClose }) {
     const i = pages.findIndex((p) => p.sheetNo === no);
     if (i < 0) return;
     setPage(i);
-    if (!pages[i].loaded) { try { setPageImage(i, await renderPage(i)); } catch { /* */ } }
+    if (!pages[i].loaded) await loadPageIfNeeded(i);
   };
 
   const send = async (question, withImage = false) => {

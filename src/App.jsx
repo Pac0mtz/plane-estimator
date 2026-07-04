@@ -3,7 +3,7 @@ import ProjectsPage from "./components/ProjectsPage.jsx";
 import ClientsPage from "./components/ClientsPage.jsx";
 import PriceBookPage from "./components/PriceBookPage.jsx";
 import TakeoffView from "./components/TakeoffView.jsx";
-import ImportProgress from "./components/ImportProgress.jsx";
+import ImportModal from "./components/ImportModal.jsx";
 import { useStore } from "./store/useStore.js";
 
 export default function App() {
@@ -16,7 +16,7 @@ export default function App() {
       {view === "clients" && <ClientsPage />}
       {view === "pricebook" && <PriceBookPage />}
       {view === "takeoff" && <TakeoffView />}
-      <ImportProgress />
+      <ImportModal />
     </div>
   );
 }
