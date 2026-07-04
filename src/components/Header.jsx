@@ -1,4 +1,4 @@
-import { Upload, FileText, RotateCcw, Loader2, MessageSquareText, Ruler } from "lucide-react";
+import { Upload, FileText, RotateCcw, Loader2, Sparkles, Ruler } from "lucide-react";
 import { useStore } from "../store/useStore.js";
 import { useRef, useState } from "react";
 import { importPlanFile, ACCEPT } from "../lib/importPlan.js";
@@ -40,7 +40,7 @@ export default function Header({ onExport, projectName, assistantOpen, onToggleA
     <header className="flex items-center gap-2 px-3 h-12 border-b border-slate-800 bg-slate-950 text-slate-100 shrink-0">
       {/* project + status */}
       <div className="flex items-center gap-2 min-w-0">
-        <span className="font-semibold tracking-tight truncate max-w-[110px] sm:max-w-[180px]">{projectName || "Demo plan"}</span>
+        <span className="font-semibold tracking-tight truncate max-w-[110px] sm:max-w-[180px]">{projectName || "Takeoff"}</span>
         <span className="hidden sm:flex items-center gap-1 text-[11px] px-2 h-6 rounded bg-slate-800 text-slate-300 shrink-0">
           {s.scaleReading ? <Loader2 size={11} className="animate-spin text-violet-400" /> : <Ruler size={11} className="text-slate-500" />}
           {s.scaleReading ? <span className="text-violet-300">reading scale…</span> : ppf ? <b className="text-emerald-400">{ppf.toFixed(1)} px/ft</b> : <b className="text-amber-400">not set</b>}
@@ -53,15 +53,15 @@ export default function Header({ onExport, projectName, assistantOpen, onToggleA
       {/* AI cluster — the assistant reads schedules/trades (reliable). Takeoff
           is done with Read dimensions + Measure wall in the toolbar. */}
       <div className="flex items-center gap-1.5">
-        <HBtn icon={MessageSquareText} label="Assistant" tone="violet" on={assistantOpen} onClick={onToggleAssistant}
-          title="Ask the AI plan assistant — summarize sheets, list trades, read schedules" />
+        <HBtn icon={Sparkles} label="AI" tone="violet" on={assistantOpen} onClick={onToggleAssistant}
+          title="AI plan assistant — summarize sheets, list trades, read schedules" show="md" />
       </div>
 
       <div className="h-6 w-px bg-slate-800 mx-1 hidden sm:block" />
 
       {/* plan cluster */}
       <div className="flex items-center gap-1.5">
-        {!projectName && <HBtn icon={RotateCcw} label="Demo" onClick={s.resetDemo} title="Reset to demo plan" show="xl" />}
+        {!projectName && s.bg.type === "demo" && <HBtn icon={RotateCcw} label="Demo" onClick={s.resetDemo} title="Load demo plan" show="xl" />}
         <HBtn icon={Upload} label={busy ? "Reading…" : "Upload"} onClick={() => fileRef.current?.click()} disabled={busy} spin={busy}
           title="Upload a PDF or image plan" show="md" />
         <HBtn icon={FileText} label="Proposal" tone="primary" onClick={onExport} title="Generate proposal PDF or CSV" show="md" />

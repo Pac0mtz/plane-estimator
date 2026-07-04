@@ -80,6 +80,19 @@ export const useStore = create(
 
       setView: (view) => {
         get().saveActiveProject();
+        if (view === "takeoff" && !get().activeProjectId && get().bg.type === "demo") {
+          set({
+            view,
+            bg: { type: "empty", w: DEMO.w, h: DEMO.h },
+            imgEl: null,
+            pages: [EMPTY_PAGE],
+            pageImgs: {},
+            activePage: 0,
+            ppf: null,
+            ppfNote: "not set — calibrate",
+          });
+          return;
+        }
         set({ view });
       },
 
@@ -270,12 +283,12 @@ export const useStore = create(
       setPageLoad: (pageLoad) => set({ pageLoad }),
 
       // =============================== TAKEOFF (live working-set) ===============
-      bg: { type: "demo", w: DEMO.w, h: DEMO.h },
+      bg: { type: "empty", w: DEMO.w, h: DEMO.h },
       imgEl: null,
-      ppf: DEMO.ppf,
-      ppfNote: "demo scale",
+      ppf: null,
+      ppfNote: "not set — calibrate",
 
-      pages: [DEMO_PAGE],
+      pages: [EMPTY_PAGE],
       pageImgs: {},
       activePage: 0,
       sheetIndex: [], // [{ no, title, discipline }] parsed from the plan set
@@ -288,12 +301,20 @@ export const useStore = create(
       pushChat: (msg) => set((s) => ({ chat: [...s.chat, msg] })),
       setChatBusy: (chatBusy) => set({ chatBusy }),
       clearChat: () => set({ chat: [] }),
-      setAssistantOpen: (assistantOpen) => set({ assistantOpen }),
-      toggleAssistant: () => set((s) => ({ assistantOpen: !s.assistantOpen })),
+      setAssistantOpen: (assistantOpen) =>
+        set((s) => ({
+          assistantOpen,
+          ...(assistantOpen ? { showAnalysis: false } : {}),
+        })),
+      toggleAssistant: () =>
+        set((s) => {
+          const next = !s.assistantOpen;
+          return { assistantOpen: next, ...(next ? { showAnalysis: false } : {}) };
+        }),
 
       // collapsible takeoff panels
-      showTools: true,
-      showAnalysis: true,
+      showTools: false,
+      showAnalysis: false,
       showSheets: true,
       toggleTools: () => set((s) => ({ showTools: !s.showTools })),
       toggleAnalysis: () => set((s) => ({ showAnalysis: !s.showAnalysis })),
@@ -616,6 +637,7 @@ export const useStore = create(
           ppf: null,
           ppfNote: "not set — calibrate",
           tool: "calibrate",
+          showSheets: true,
         }),
 
       // the currently-open sheet's parsed metadata + text (for the assistant)
@@ -752,6 +774,13 @@ export const useStore = create(
           state.pages = [EMPTY_PAGE];
           state.pageImgs = {};
           state.imgEl = null;
+        } else if (state.view === "takeoff" && state.bg?.type === "demo") {
+          state.bg = { type: "empty", w: DEMO.w, h: DEMO.h };
+          state.pages = [EMPTY_PAGE];
+          state.pageImgs = {};
+          state.imgEl = null;
+          state.ppf = null;
+          state.ppfNote = "not set — calibrate";
         }
         state.bookMeta = {
           overheadPct: state.bookMeta?.overheadPct ?? DEFAULT_BOOK_META.overheadPct,

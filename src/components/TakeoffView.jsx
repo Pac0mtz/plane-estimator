@@ -10,7 +10,7 @@ import MaterialsPanel from "./MaterialsPanel.jsx";
 import AiReviewPanel from "./AiReviewPanel.jsx";
 import AssistantPanel from "./AssistantPanel.jsx";
 import ExportModal from "./ExportModal.jsx";
-import { PanelRightOpen, PanelRightClose } from "lucide-react";
+import { PanelToggle, CollapsedRail } from "./PanelToggle.jsx";
 import { useStore } from "../store/useStore.js";
 import { ASSEMBLIES, explode } from "../lib/assemblies.js";
 import { traceQty } from "../lib/geometry.js";
@@ -52,21 +52,18 @@ export default function TakeoffView() {
 
         {showAnalysis ? (
           <div className="w-60 xl:w-72 shrink-0 border-l border-slate-800 bg-slate-950 flex flex-col overflow-y-auto relative">
-            <button onClick={toggleAnalysis} aria-label="Hide analysis panel" title="Hide panel"
-              className="absolute top-1.5 right-1.5 z-10 p-1 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-brand outline-none">
-              <PanelRightClose size={14} />
-            </button>
+            <div className="sticky top-0 z-20 flex items-center gap-2 px-2 py-1.5 border-b border-slate-800 bg-slate-950/95 backdrop-blur-sm">
+              <PanelToggle onClick={toggleAnalysis} expanded side="right" title="Collapse analysis panel" />
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Analysis</span>
+            </div>
             <AiReviewPanel />
             <LayersPanel rollup={rollup} />
             <LayerDetails rollup={rollup} />
             <MaterialsPanel rollup={rollup} grand={grand} onGenerateProposal={() => setExportOpen(true)} />
           </div>
-        ) : (
-          <button onClick={toggleAnalysis} aria-label="Show analysis panel" title="Show panel"
-            className="w-6 shrink-0 border-l border-slate-800 bg-slate-950 hover:bg-slate-900 flex items-center justify-center text-slate-500 hover:text-slate-200">
-            <PanelRightOpen size={14} />
-          </button>
-        )}
+        ) : !assistantOpen ? (
+          <CollapsedRail onClick={toggleAnalysis} side="right" title="Expand analysis panel" />
+        ) : null}
 
         {assistantOpen && <AssistantPanel onClose={() => setAssistantOpen(false)} />}
       </div>

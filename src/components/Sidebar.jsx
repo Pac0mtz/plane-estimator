@@ -1,6 +1,7 @@
-import { FolderKanban, Users, PencilRuler, BookOpen, ChevronLeft } from "lucide-react";
+import { FolderKanban, Users, PencilRuler, BookOpen } from "lucide-react";
 import { useStore } from "../store/useStore.js";
 import { useState, useEffect } from "react";
+import { PanelToggle } from "./PanelToggle.jsx";
 
 const NAV = [
   { key: "projects", label: "Projects", icon: FolderKanban },
@@ -13,15 +14,12 @@ const NAV = [
 export default function Sidebar() {
   const { view, setView, projects, clients } = useStore();
   const active = useStore((s) => s.activeProject());
-  const [open, setOpen] = useState(typeof window === "undefined" || window.innerWidth >= 1100);
+  const [open, setOpen] = useState(false);
 
-  // auto-collapse to an icon rail when the window gets narrow (the takeoff needs
-  // the width for its canvas); still user-toggleable between resizes.
+  // Auto-collapse on narrow screens only — never force-expand on wide.
   useEffect(() => {
-    let wide = window.innerWidth >= 1100;
     const onResize = () => {
-      const nowWide = window.innerWidth >= 1100;
-      if (nowWide !== wide) { wide = nowWide; setOpen(nowWide); }
+      if (window.innerWidth < 1100) setOpen(false);
     };
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
@@ -31,14 +29,22 @@ export default function Sidebar() {
 
   return (
     <nav className={`${open ? "w-52" : "w-14"} shrink-0 border-r border-slate-800 bg-slate-950 flex flex-col transition-all duration-200`}>
-      <div className="flex items-center gap-2 px-3 h-12 border-b border-slate-800">
-        <div className="w-7 h-7 rounded flex items-center justify-center font-black text-sm shrink-0"
-          style={{ background: "linear-gradient(135deg,#0a2540,#2f7fd1)" }}>P</div>
-        {open && <span className="font-bold tracking-tight text-slate-100 truncate">Plan Forge</span>}
-        <button onClick={() => setOpen((v) => !v)} aria-label={open ? "Collapse sidebar" : "Expand sidebar"}
-          className="ml-auto text-slate-500 hover:text-slate-200">
-          <ChevronLeft size={16} className={open ? "" : "rotate-180"} />
-        </button>
+      <div className={`flex items-center ${open ? "gap-2 px-2" : "justify-center px-1"} h-12 border-b border-slate-800`}>
+        {open && (
+          <>
+            <div className="w-7 h-7 rounded flex items-center justify-center font-black text-sm shrink-0"
+              style={{ background: "linear-gradient(135deg,#0a2540,#2f7fd1)" }}>P</div>
+            <span className="font-bold tracking-tight text-slate-100 truncate flex-1 min-w-0">Plan Forge</span>
+          </>
+        )}
+        <PanelToggle
+          onClick={() => setOpen((v) => !v)}
+          expanded={open}
+          side="left"
+          size="sm"
+          title={open ? "Collapse navigation" : "Expand navigation"}
+          className={open ? "ml-auto shrink-0" : "shrink-0"}
+        />
       </div>
 
       <div className="flex-1 p-2 flex flex-col gap-1">

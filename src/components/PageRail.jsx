@@ -2,7 +2,8 @@ import { useStore } from "../store/useStore.js";
 import { renderThumb } from "../lib/pdf.js";
 import { maybeAutoScale, loadPageIfNeeded } from "../lib/importPlan.js";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { Loader2, Search, Trash2, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Layers, GripHorizontal } from "lucide-react";
+import { Loader2, Search, Trash2, ChevronLeft, ChevronRight, Layers, GripHorizontal } from "lucide-react";
+import { PanelToggle } from "./PanelToggle.jsx";
 
 const SHEETS_H_KEY = "plan-forge-sheets-h";
 const MIN_H = 112;
@@ -124,12 +125,12 @@ export default function PageRail() {
   if (!showSheets) {
     return (
       <div className="shrink-0 border-t border-slate-800 bg-slate-950 flex items-center gap-2 px-2 h-9">
+        <PanelToggle onClick={toggleSheets} expanded={false} axis="vertical" size="sm" title="Expand sheet strip" />
         <button onClick={toggleSheets} title="Show sheet strip"
-          className="flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-slate-200 px-1.5 py-1 rounded hover:bg-slate-800">
-          <Layers size={13} />
-          <span className="font-semibold text-slate-300">Sheets</span>
+          className="flex items-center gap-1.5 text-[11px] text-slate-300 hover:text-white px-1.5 py-1 rounded hover:bg-slate-800">
+          <Layers size={13} className="text-brand" />
+          <span className="font-semibold">Sheets</span>
           <span className="text-slate-500">{activePage + 1}/{pages.length}</span>
-          <ChevronUp size={13} className="text-slate-500" />
         </button>
         <div className="h-4 w-px bg-slate-800" />
         <button onClick={prev} disabled={activePage <= 0} aria-label="Previous sheet"
@@ -154,11 +155,10 @@ export default function PageRail() {
       </div>
 
       <div className="flex items-center gap-2 px-2 py-1.5 border-b border-slate-800/80 shrink-0 mt-1">
-        <button onClick={toggleSheets} title="Collapse sheet strip"
-          className="flex items-center gap-1 text-[10px] font-semibold tracking-wider text-slate-500 uppercase shrink-0 hover:text-slate-300 px-1 py-0.5 rounded hover:bg-slate-800">
-          <Layers size={12} /> Sheets · {pages.length}
-          <ChevronDown size={12} className="ml-0.5" />
-        </button>
+        <PanelToggle onClick={toggleSheets} expanded axis="vertical" size="sm" title="Collapse sheet strip" />
+        <span className="flex items-center gap-1 text-[10px] font-semibold tracking-wider text-slate-500 uppercase shrink-0">
+          <Layers size={12} className="text-brand" /> Sheets · {pages.length}
+        </span>
 
         <div className="relative flex-1 max-w-xs min-w-[120px]">
           <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500" />

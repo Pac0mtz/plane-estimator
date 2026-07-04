@@ -1,7 +1,8 @@
 import { useRef, useEffect, useState } from "react";
 import {
-  MousePointer2, Hand, Ruler, Square, Minus, Hash, Undo2, Check, Trash2, X, RectangleHorizontal, MoveDiagonal, ScanLine, Loader2, Ban, Magnet, PaintBucket, PanelLeftOpen, ChevronLeft, Scale,
+  MousePointer2, Hand, Ruler, Square, Minus, Hash, Undo2, Check, Trash2, X, RectangleHorizontal, MoveDiagonal, ScanLine, Loader2, Ban, Magnet, PaintBucket, Scale,
 } from "lucide-react";
+import { PanelToggle } from "./PanelToggle.jsx";
 import { useStore } from "../store/useStore.js";
 import { geomLabel } from "../lib/assemblies.js";
 import { detectScale, hasKey } from "../lib/aiDetect.js";
@@ -123,11 +124,8 @@ export default function Toolbar({ collapsed = false, onToggleCollapse }) {
 
   if (collapsed) {
     return (
-      <div className="w-11 shrink-0 border-r border-slate-800 bg-slate-950 py-1.5 px-1 flex flex-col items-center gap-1 overflow-y-auto">
-        <button onClick={onToggleCollapse} aria-label="Expand tools panel" title="Expand tools panel"
-          className="w-9 h-9 flex items-center justify-center rounded-md text-slate-400 hover:bg-slate-800 hover:text-slate-100 shrink-0">
-          <PanelLeftOpen size={16} />
-        </button>
+      <div className="w-11 shrink-0 border-r border-slate-800 bg-slate-950 py-2 px-1 flex flex-col items-center gap-1 overflow-y-auto">
+        <PanelToggle onClick={onToggleCollapse} expanded={false} side="left" title="Expand tools panel" />
         <RailDivider />
         <IconBtn ic={<MousePointer2 size={16} />} label="Select" hotkey="v" on={s.tool === "select"} onClick={() => s.setTool("select")} />
         <IconBtn ic={<Hand size={16} />} label="Pan" hotkey="h" on={s.tool === "pan"} onClick={() => s.setTool("pan")} />
@@ -154,12 +152,12 @@ export default function Toolbar({ collapsed = false, onToggleCollapse }) {
   }
 
   return (
-    <div className="w-44 xl:w-48 shrink-0 border-r border-slate-800 bg-slate-950 p-2 flex flex-col gap-2 overflow-y-auto relative">
+    <div className="w-44 xl:w-48 shrink-0 border-r border-slate-800 bg-slate-950 p-2 flex flex-col gap-2 overflow-y-auto">
       {onToggleCollapse && (
-        <button onClick={onToggleCollapse} aria-label="Collapse tools panel" title="Collapse to icons"
-          className="absolute top-1.5 right-1.5 z-10 p-1 rounded text-slate-500 hover:text-slate-200 hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-brand outline-none">
-          <ChevronLeft size={14} />
-        </button>
+        <div className="flex items-center gap-2 pb-1 border-b border-slate-800/80 mb-0.5">
+          <PanelToggle onClick={onToggleCollapse} expanded side="left" title="Collapse tools panel" size="sm" />
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Tools</span>
+        </div>
       )}
       <Group title="Navigate">
         <Btn ic={<MousePointer2 size={15} />} label="Select" hotkey="v" on={s.tool === "select"} onClick={() => s.setTool("select")} />

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { Sparkles, Send, Loader2, X, FileText, Trash2, ClipboardList, Hammer, Layers2 } from "lucide-react";
+import { Sparkles, Send, Loader2, FileText, Trash2, ClipboardList, Hammer, Layers2 } from "lucide-react";
+import { PanelToggle } from "./PanelToggle.jsx";
 import { useStore } from "../store/useStore.js";
 import { maybeAutoScale, loadPageIfNeeded } from "../lib/importPlan.js";
 import { hasKey } from "../lib/aiDetect.js";
@@ -42,12 +43,11 @@ export default function AssistantPanel({ onClose }) {
 
   return (
     <div className="w-80 shrink-0 border-l border-slate-800 bg-slate-950 flex flex-col">
-      <div className="flex items-center gap-2 px-3 h-11 border-b border-slate-800">
-        <Sparkles size={16} className="text-violet-400" />
-        <span className="font-semibold text-sm">Plan assistant</span>
-        <div className="flex-1" />
-        {chat.length > 0 && <button onClick={clearChat} title="Clear chat" className="text-slate-500 hover:text-slate-200"><Trash2 size={14} /></button>}
-        <button onClick={onClose} title="Close" className="text-slate-500 hover:text-slate-200"><X size={16} /></button>
+      <div className="flex items-center gap-2 px-2 h-11 border-b border-slate-800">
+        <Sparkles size={16} className="text-violet-400 shrink-0" />
+        <span className="font-semibold text-sm flex-1 min-w-0 truncate">Plan assistant</span>
+        {chat.length > 0 && <button onClick={clearChat} title="Clear chat" className="p-1.5 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-800"><Trash2 size={14} /></button>}
+        <PanelToggle onClick={onClose} expanded side="right" size="sm" title="Close assistant" />
       </div>
 
       {active?.sheetNo && (
