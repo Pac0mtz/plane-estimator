@@ -1,4 +1,4 @@
-import { Trash2, ArrowRight, Pencil } from "lucide-react";
+import { Trash2, ArrowRight, Pencil, Building2, MapPin } from "lucide-react";
 
 const statusTone = {
   active: "bg-blue-900/50 text-blue-300",
@@ -7,9 +7,10 @@ const statusTone = {
   archived: "bg-slate-800 text-slate-400",
 };
 
-/** Document-shell card for one estimator work / project on the Plan Estimator page. */
 export default function EstimatorWorkCard({
   title,
+  subtitle,
+  address,
   meta,
   status = "active",
   onOpen,
@@ -18,11 +19,11 @@ export default function EstimatorWorkCard({
 }) {
   return (
     <article
-      className="bg-card text-card-foreground border border-border/50 transition-all duration-200 document-shell-outer-card shadow-none hover:shadow-none rounded-[var(--radius,0.5rem)] overflow-hidden flex flex-col min-h-0 cursor-pointer hover:border-primary/40"
+      className="group desk-card bg-card text-card-foreground border border-border/50 transition-all duration-200 document-shell-outer-card rounded-[var(--radius,0.5rem)] overflow-hidden flex flex-col min-h-0 cursor-pointer hover:border-primary/50 active:scale-[0.99] md:active:scale-100"
       onClick={onOpen}
     >
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border/40 min-w-0">
-        <h3 className="flex-1 text-sm font-semibold truncate min-w-0">{title}</h3>
+        <h3 className="flex-1 text-sm lg:text-[15px] font-semibold truncate min-w-0">{title}</h3>
         <span className={`text-[10px] px-2 py-0.5 rounded-full capitalize shrink-0 ${statusTone[status] || statusTone.active}`}>
           {status}
         </span>
@@ -30,26 +31,38 @@ export default function EstimatorWorkCard({
           type="button"
           title="Delete"
           onClick={(e) => { e.stopPropagation(); onDelete?.(); }}
-          className="shrink-0 p-1 rounded text-muted-foreground hover:text-rose-400 hover:bg-rose-950/40"
+          className="touch-target md:touch-target-none opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 flex items-center justify-center p-1 rounded text-muted-foreground hover:text-rose-400 hover:bg-rose-950/40 transition-opacity"
         >
           <Trash2 size={14} />
         </button>
       </div>
-      <div className="p-4 flex flex-col gap-3">
-        <p className="text-[11px] text-muted-foreground">{meta}</p>
-        <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+      <div className="p-4 flex flex-col gap-3 flex-1">
+        {subtitle && (
+          <div className="text-xs text-muted-foreground flex items-center gap-1.5 truncate">
+            <Building2 size={13} className="shrink-0 opacity-70" />
+            <span className="truncate">{subtitle}</span>
+          </div>
+        )}
+        {address && (
+          <div className="text-xs text-muted-foreground flex items-center gap-1.5 truncate">
+            <MapPin size={13} className="shrink-0 opacity-70" />
+            <span className="truncate">{address}</span>
+          </div>
+        )}
+        <p className="text-[11px] lg:text-xs text-muted-foreground leading-snug mt-auto">{meta}</p>
+        <div className="flex items-center gap-1.5 pt-0.5" onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
             onClick={onOpen}
-            className="flex-1 flex items-center justify-center gap-1 text-xs py-1.5 rounded bg-brand hover:bg-brand2 font-medium text-white"
+            className="flex-1 flex items-center justify-center gap-1.5 text-xs py-2 md:py-1.5 rounded-md bg-brand hover:bg-brand2 font-medium text-white min-h-10 md:min-h-8 shadow-sm"
           >
-            Open <ArrowRight size={13} />
+            Open takeoff <ArrowRight size={13} />
           </button>
           <button
             type="button"
             onClick={onEdit}
             title="Edit"
-            className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300"
+            className="touch-target md:touch-target-none md:h-8 md:w-8 flex items-center justify-center p-2 md:p-0 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
           >
             <Pencil size={14} />
           </button>

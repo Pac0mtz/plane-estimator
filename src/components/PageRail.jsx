@@ -131,7 +131,7 @@ export default function PageRail() {
 
   if (!showSheets) {
     return (
-      <div className="shrink-0 border-t border-slate-800 bg-slate-950 flex items-center gap-2 px-2 h-9">
+      <div className="shrink-0 border-t border-slate-800/80 bg-slate-950/95 backdrop-blur-sm flex items-center gap-2 px-3 h-10 takeoff-chrome">
         <PanelToggle onClick={toggleSheets} expanded={false} axis="vertical" size="sm" title="Expand sheet strip" />
         <button onClick={toggleSheets} title="Show sheet strip"
           className="flex items-center gap-1.5 text-[11px] text-slate-300 hover:text-white px-1.5 py-1 rounded hover:bg-slate-800">
@@ -153,7 +153,7 @@ export default function PageRail() {
   }
 
   return (
-    <div className="shrink-0 border-t border-slate-800 bg-slate-950 flex flex-col relative max-md:max-h-[min(38vh,240px)]" style={{ height: panelH }}>
+    <div className="shrink-0 border-t border-slate-800/80 bg-slate-950/95 backdrop-blur-sm flex flex-col relative max-md:max-h-[min(38vh,240px)] takeoff-chrome" style={{ height: panelH }}>
       <div role="separator" aria-label="Resize sheet strip" title="Drag to resize · double-click to reset"
         onPointerDown={onResizeStart} onPointerMove={onResizeMove} onPointerUp={onResizeEnd} onPointerCancel={onResizeEnd}
         onDoubleClick={() => setHeight(DEFAULT_H)}
@@ -201,8 +201,8 @@ export default function PageRail() {
             const subFs = th >= 120 ? "text-[10px]" : "text-[9px]";
             return (
               <div key={i} ref={active ? activeRef : null}
-                className={`group relative shrink-0 rounded-lg border transition-colors ${
-                  active ? "border-brand bg-slate-800 ring-1 ring-brand/60" : "border-slate-700/80 bg-slate-900 hover:border-slate-600 hover:bg-slate-800/80"
+                className={`group relative shrink-0 rounded-lg border transition-all duration-200 ${
+                  active ? "sheet-thumb-active border-brand bg-slate-800 ring-2 ring-brand/50 scale-[1.02]" : "border-slate-700/80 bg-slate-900 hover:border-slate-500 hover:bg-slate-800/80 hover:scale-[1.01]"
                 }`}>
                 <button onClick={() => go(i)} className="flex flex-col items-start text-left p-1.5" title={p.title || p.sheetNo || `Sheet ${i + 1}`}>
                   <div className="relative rounded overflow-hidden bg-white border border-slate-700/50 shrink-0" style={{ width: tw, height: th }}>

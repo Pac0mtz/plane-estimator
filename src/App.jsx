@@ -43,11 +43,12 @@ export default function App() {
   }, [booted, view, activeProjectId]);
 
   const showDbBanner = dbStatus === "syncing" || dbStatus === "error";
+  const showMobileNav = !onPlanEstimator && view !== "takeoff";
 
   return (
-    <div className="plan-estimator-root w-full h-full flex flex-col md:flex-row bg-slate-900 text-slate-100 font-sans">
+    <div className="plan-estimator-root w-full h-full min-h-0 flex flex-col md:flex-row bg-slate-900 text-slate-100 font-sans">
       {!onPlanEstimator && <Sidebar />}
-      <div className="flex-1 flex flex-col min-w-0 min-h-0 pb-[calc(3.25rem+env(safe-area-inset-bottom))] md:pb-0">
+      <div className={`flex-1 flex flex-col min-w-0 min-h-0 ${showMobileNav ? "pb-mobile-nav" : ""}`}>
         {showDbBanner && (
           <div className={`shrink-0 px-3 py-1.5 text-xs border-b ${
             dbStatus === "error"
@@ -61,16 +62,16 @@ export default function App() {
         {!booted ? (
           <div className="flex-1 flex items-center justify-center text-slate-400 text-sm">Loading…</div>
         ) : (
-          <>
+          <div className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
             {view === "projects" && (onPlanEstimator ? <PlanEstimatorPage /> : <ProjectsPage />)}
             {!onPlanEstimator && view === "clients" && <ClientsPage />}
             {!onPlanEstimator && view === "pricebook" && <PriceBookPage />}
             {view === "takeoff" && <TakeoffView />}
-          </>
+          </div>
         )}
         <ImportModal />
       </div>
-      {!onPlanEstimator && <MobileNav />}
+      {showMobileNav && <MobileNav />}
     </div>
   );
 }

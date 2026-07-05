@@ -210,6 +210,8 @@ export const useStore = create(
           suggestions: [],
           planKind: null,
           planFileName: null,
+          historyPast: [],
+          historyFuture: [],
         });
       },
 
@@ -369,6 +371,41 @@ export const useStore = create(
       draft: [],
       calib: [],
 
+      // undo/redo for trace edits (in-memory only)
+      historyPast: [],
+      historyFuture: [],
+      pushHistory: () => {
+        const s = get();
+        const snap = { traces: JSON.parse(JSON.stringify(s.traces)), selId: s.selId };
+        set({ historyPast: [...s.historyPast.slice(-49), snap], historyFuture: [] });
+      },
+      undo: () => {
+        const s = get();
+        if (!s.historyPast.length) return;
+        const prev = s.historyPast[s.historyPast.length - 1];
+        const current = { traces: JSON.parse(JSON.stringify(s.traces)), selId: s.selId };
+        set({
+          historyPast: s.historyPast.slice(0, -1),
+          historyFuture: [current, ...s.historyFuture.slice(0, 49)],
+          traces: prev.traces,
+          selId: prev.selId,
+        });
+      },
+      redo: () => {
+        const s = get();
+        if (!s.historyFuture.length) return;
+        const next = s.historyFuture[0];
+        const current = { traces: JSON.parse(JSON.stringify(s.traces)), selId: s.selId };
+        set({
+          historyFuture: s.historyFuture.slice(1),
+          historyPast: [...s.historyPast.slice(-49), current],
+          traces: next.traces,
+          selId: next.selId,
+        });
+      },
+      canUndo: () => get().historyPast.length > 0,
+      canRedo: () => get().historyFuture.length > 0,
+
       suggestions: [],
       aiBusy: false,
       aiError: null,
@@ -387,27 +424,27 @@ export const useStore = create(
 
       // click a real line -> create a linear trace snapped to that exact
       // geometry on the active layer, so it prices out with precise LF.
-      addSnappedTrace: (pts) =>
+      addSnappedTrace: (pts) => {
+        if (!pts || pts.length < 2) return;
+        get().pushHistory();
         set((s) => {
-          if (!pts || pts.length < 2) return {};
           const clamped = pts.map((p) => ({ x: Math.max(0, Math.min(s.bg.w, p.x)), y: Math.max(0, Math.min(s.bg.h, p.y)) }));
           return { traces: [...s.traces, { id: uid(), layer: s.activeId, page: s.activePage, type: "linear", pts: clamped, snapped: true }] };
-        }),
+        });
+      },
 
-      // click inside a room -> area trace from the flood-filled boundary.
-      // An area trace on a linear/count layer would price nonsense (SF read as
-      // LF), so land it on the active layer only if that layer measures area —
-      // otherwise the first visible area layer (and make it active).
-      addAreaTrace: (pts) =>
+      addAreaTrace: (pts) => {
+        if (!pts || pts.length < 3) return;
+        get().pushHistory();
         set((s) => {
-          if (!pts || pts.length < 3) return {};
           const geomOf = (l) => ASSEMBLIES[l.asm]?.geom;
           let layer = s.layers.find((l) => l.id === s.activeId);
           if (!layer || geomOf(layer) !== "area") layer = s.layers.find((l) => l.visible && geomOf(l) === "area");
-          if (!layer) return {}; // no area layer to receive it — caller warns
+          if (!layer) return {};
           const clamped = pts.map((p) => ({ x: Math.max(0, Math.min(s.bg.w, p.x)), y: Math.max(0, Math.min(s.bg.h, p.y)) }));
           return { activeId: layer.id, traces: [...s.traces, { id: uid(), layer: layer.id, page: s.activePage, type: "area", pts: clamped, snapped: true }] };
-        }),
+        });
+      },
 
       setTool: (tool) => set({ tool, draft: [], calib: [], measure: null }),
       setActive: (activeId) => set({ activeId, draft: [] }),
@@ -437,11 +474,13 @@ export const useStore = create(
           if (!s.draft.length) { set({ draft: [p] }); return; }
           const a = s.draft[0];
           const pts = [a, { x: p.x, y: a.y }, p, { x: a.x, y: p.y }];
+          get().pushHistory();
           set({ traces: [...s.traces, { id: uid(), layer: s.activeId, page: s.activePage, type: "area", pts }], draft: [] });
           return;
         }
         if (s.tool !== "draw") return;
         if (s.activeGeom() === "count") {
+          get().pushHistory();
           set({ traces: [...s.traces, { id: uid(), layer: s.activeId, page: s.activePage, type: "count", pts: [p] }] });
         } else {
           set({ draft: [...s.draft, p] });
@@ -450,25 +489,34 @@ export const useStore = create(
 
       undoPoint: () => set((s) => ({ draft: s.draft.slice(0, -1) })),
 
-      finishDraft: () =>
-        set((s) => {
-          if (s.tool === "exclude") {
-            if (s.draft.length >= 3)
-              return { traces: [...s.traces, { id: uid(), layer: null, page: s.activePage, type: "area", excluded: true, pts: s.draft }], draft: [] };
+      finishDraft: () => {
+        const s = get();
+        const willAdd =
+          (s.tool === "exclude" && s.draft.length >= 3) ||
+          (s.tool !== "exclude" && s.layers.find((l) => l.id === s.activeId) &&
+            ((ASSEMBLIES[s.layers.find((l) => l.id === s.activeId).asm].geom === "area" && s.draft.length >= 3) ||
+              (ASSEMBLIES[s.layers.find((l) => l.id === s.activeId).asm].geom === "linear" && s.draft.length >= 2)));
+        if (willAdd) get().pushHistory();
+        set((st) => {
+          if (st.tool === "exclude") {
+            if (st.draft.length >= 3)
+              return { traces: [...st.traces, { id: uid(), layer: null, page: st.activePage, type: "area", excluded: true, pts: st.draft }], draft: [] };
             return { draft: [] };
           }
-          const g = ASSEMBLIES[s.layers.find((l) => l.id === s.activeId).asm].geom;
-          const base = { id: uid(), layer: s.activeId, page: s.activePage };
-          if (g === "area" && s.draft.length >= 3)
-            return { traces: [...s.traces, { ...base, type: "area", pts: s.draft }], draft: [] };
-          if (g === "linear" && s.draft.length >= 2)
-            return { traces: [...s.traces, { ...base, type: "linear", pts: s.draft }], draft: [] };
+          const g = ASSEMBLIES[st.layers.find((l) => l.id === st.activeId).asm].geom;
+          const base = { id: uid(), layer: st.activeId, page: st.activePage };
+          if (g === "area" && st.draft.length >= 3)
+            return { traces: [...st.traces, { ...base, type: "area", pts: st.draft }], draft: [] };
+          if (g === "linear" && st.draft.length >= 2)
+            return { traces: [...st.traces, { ...base, type: "linear", pts: st.draft }], draft: [] };
           return { draft: [] };
-        }),
+        });
+      },
 
-      // mark a trace in/out of scope (excluded traces never count in the rollup)
-      toggleExclude: (id) =>
-        set((s) => ({ traces: s.traces.map((t) => (t.id === id ? { ...t, excluded: !t.excluded } : t)) })),
+      toggleExclude: (id) => {
+        get().pushHistory();
+        set((s) => ({ traces: s.traces.map((t) => (t.id === id ? { ...t, excluded: !t.excluded } : t)) }));
+      },
       // move a trace's vertices (edit detected areas) — clamped to plan bounds
       updateTracePts: (id, pts) =>
         set((s) => {
@@ -481,20 +529,26 @@ export const useStore = create(
       clampTracesTo: (w, h) =>
         set((s) => ({ traces: s.traces.map((t) => ({ ...t, pts: (t.pts || []).map((p) => ({ x: Math.max(0, Math.min(w, p.x)), y: Math.max(0, Math.min(h, p.y)) })) })) })),
 
-      deleteSel: () => set((s) => ({ traces: s.traces.filter((t) => t.id !== s.selId), selId: null })),
+      deleteSel: () => {
+        get().pushHistory();
+        set((s) => ({ traces: s.traces.filter((t) => t.id !== s.selId), selId: null }));
+      },
 
-      // quick-action: clone the selected trace with a small offset and select it
-      duplicateTrace: (id) =>
+      duplicateTrace: (id) => {
+        get().pushHistory();
         set((s) => {
           const t = s.traces.find((x) => x.id === id);
           if (!t) return {};
           const pts = t.pts.map((p) => ({ x: Math.min(s.bg.w, p.x + 14), y: Math.min(s.bg.h, p.y + 14) }));
           const nt = { ...t, id: uid(), pts };
           return { traces: [...s.traces, nt], selId: nt.id };
-        }),
+        });
+      },
 
-      clearAll: () =>
-        set((s) => ({ traces: s.traces.filter((t) => (t.page ?? 0) !== s.activePage), draft: [], selId: null })),
+      clearAll: () => {
+        get().pushHistory();
+        set((s) => ({ traces: s.traces.filter((t) => (t.page ?? 0) !== s.activePage), draft: [], selId: null }));
+      },
 
       toggleLayer: (id) =>
         set((s) => ({ layers: s.layers.map((l) => (l.id === id ? { ...l, visible: !l.visible } : l)) })),
@@ -792,7 +846,8 @@ export const useStore = create(
       setSuggestions: (suggestions) => set({ suggestions, aiBusy: false, aiError: null }),
       clearSuggestions: () => set({ suggestions: [] }),
 
-      acceptSuggestion: (id) =>
+      acceptSuggestion: (id) => {
+        get().pushHistory();
         set((s) => {
           const sg = s.suggestions.find((x) => x.id === id);
           if (!sg) return {};
@@ -800,16 +855,19 @@ export const useStore = create(
             traces: [...s.traces, { id: uid(), layer: sg.layerId, page: s.activePage, type: sg.type, pts: sg.pts }],
             suggestions: s.suggestions.filter((x) => x.id !== id),
           };
-        }),
+        });
+      },
       rejectSuggestion: (id) => set((s) => ({ suggestions: s.suggestions.filter((x) => x.id !== id) })),
-      acceptAllSuggestions: () =>
+      acceptAllSuggestions: () => {
+        get().pushHistory();
         set((s) => ({
           traces: [
             ...s.traces,
             ...s.suggestions.map((sg) => ({ id: uid(), layer: sg.layerId, page: s.activePage, type: sg.type, pts: sg.pts })),
           ],
           suggestions: [],
-        })),
+        }));
+      },
 
       resetDemo: () =>
         set({
@@ -822,6 +880,8 @@ export const useStore = create(
           ppfNote: "demo scale",
           traces: (get().traces || []).filter((t) => false), // clear traces on the demo backdrop
           draft: [],
+          historyPast: [],
+          historyFuture: [],
           selId: null,
           suggestions: [],
           tool: "select",

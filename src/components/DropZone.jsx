@@ -24,12 +24,12 @@ export default function DropZone({ children, className = "" }) {
       onDrop={onDrop}>
       {children}
       {over && (
-        <div className="absolute inset-2 z-40 rounded-xl bg-brand/10 border-2 border-dashed border-brand flex items-center justify-center pointer-events-none">
-          <div className="flex items-center gap-3 rounded-xl bg-slate-900/95 px-6 py-4 text-slate-100 shadow-xl">
-            <UploadCloud className="text-brand" />
+        <div className="drop-zone-active absolute inset-3 z-40 rounded-2xl bg-brand/10 border-2 border-dashed border-brand flex items-center justify-center pointer-events-none backdrop-blur-[2px]">
+          <div className="upload-prompt-card flex items-center gap-4 rounded-2xl bg-slate-950/95 px-8 py-5 text-slate-100 shadow-2xl border border-brand/30 ring-1 ring-brand/20">
+            <UploadCloud className="text-brand shrink-0" size={28} />
             <div>
-              <div className="font-semibold">Drop to import</div>
-              <div className="text-xs text-slate-400">PDF plan set or image · CAD → export to PDF first</div>
+              <div className="font-semibold text-base">Drop to import</div>
+              <div className="text-sm text-slate-400 mt-0.5">PDF plan set or image · CAD → export to PDF first</div>
             </div>
           </div>
         </div>

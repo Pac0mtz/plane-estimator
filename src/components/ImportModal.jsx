@@ -56,34 +56,85 @@ function LoadingView({ preview, onCancel }) {
   const activeIdx = STAGES.findIndex((s) => s.key === p.stage);
   const detail =
     p.stage === "thumbnails" && p.total
-      ? `page ${p.page} of ${p.total}`
+      ? `Page ${p.page} of ${p.total}`
       : p.stage === "loading" && p.total
       ? `${p.pct}%`
       : "";
 
+  const progressPct = (() => {
+    if (p.stage === "thumbnails" && p.total) {
+      const stageBase = 66;
+      const stageSpan = 34;
+      return stageBase + (p.page / p.total) * stageSpan;
+    }
+    if (p.stage === "loading" && p.total) return 20 + (p.pct / 100) * 46;
+    if (activeIdx >= 0) return [12, 35, 66][activeIdx] ?? 10;
+    return 8;
+  })();
+
   return (
-    <Overlay onClose={onCancel}>
-      <div className="w-full max-w-sm rounded-xl border border-slate-700 bg-slate-900 p-6 text-slate-100 shadow-2xl">
-        <Header fileName={preview.fileName} subtitle="Reading plan set — nothing leaves your browser." />
-        <div className="h-2 rounded-full bg-slate-800 overflow-hidden mb-4 mt-4">
-          <div className="h-full bg-brand transition-all duration-200"
-            style={{ width: `${p.stage === "thumbnails" || p.stage === "loading" ? p.pct : activeIdx >= 0 ? 35 : 10}%` }} />
+    <Overlay onClose={onCancel} size="sm">
+      <div className="import-panel w-full rounded-2xl border border-slate-700/80 bg-gradient-to-b from-slate-900 to-slate-950 p-6 lg:p-7 text-slate-100 shadow-2xl shadow-black/40 ring-1 ring-white/5">
+        <ImportFileHeader fileName={preview.fileName} subtitle="Reading plan set locally — nothing leaves your browser." />
+
+        <div className="mt-6 mb-5">
+          <div className="flex items-center justify-between text-[11px] text-slate-400 mb-2 tabular-nums">
+            <span>Import progress</span>
+            <span className="text-slate-300 font-medium">{Math.round(progressPct)}%</span>
+          </div>
+          <div className="import-progress-bar">
+            <div className="import-progress-fill" style={{ width: `${progressPct}%` }} />
+            <div className="import-progress-shimmer" />
+          </div>
         </div>
-        <ul className="flex flex-col gap-1.5">
+
+        <ol className="flex flex-col gap-2">
           {STAGES.map((s, i) => {
             const done = i < activeIdx;
             const active = i === activeIdx;
             return (
-              <li key={s.key} className={`flex items-center gap-2 text-sm ${done ? "text-emerald-400" : active ? "text-slate-100" : "text-slate-600"}`}>
-                {active ? <Loader2 size={14} className="animate-spin" /> : <span className={`w-3.5 h-3.5 rounded-full inline-block ${done ? "bg-emerald-500" : "bg-slate-700"}`} />}
-                <span className="flex-1">{s.label}</span>
-                {active && detail && <span className="text-xs text-slate-400 tabular-nums">{detail}</span>}
+              <li
+                key={s.key}
+                style={{ animationDelay: `${i * 60}ms` }}
+                className={`import-step flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors ${
+                  done ? "import-step-done bg-emerald-950/25 border border-emerald-900/30" :
+                  active ? "import-step-active bg-slate-800/60 border border-brand/30" :
+                  "border border-transparent opacity-60"
+                }`}
+              >
+                <span className={`import-step-dot flex items-center justify-center w-7 h-7 rounded-full shrink-0 ${
+                  done ? "bg-emerald-500/20 text-emerald-400" :
+                  active ? "bg-brand/20 text-brand" :
+                  "bg-slate-800 text-slate-600"
+                }`}>
+                  {done ? (
+                    <CheckCircle2 size={16} className="import-step-check" strokeWidth={2.5} />
+                  ) : active ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <span className="w-2 h-2 rounded-full bg-slate-600" />
+                  )}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className={`text-sm font-medium ${done ? "text-emerald-300" : active ? "text-slate-100" : "text-slate-500"}`}>
+                    {s.label}
+                  </div>
+                  {active && detail && (
+                    <div className="text-xs text-brand/90 mt-0.5 tabular-nums animate-pulse">{detail}</div>
+                  )}
+                </div>
               </li>
             );
           })}
-        </ul>
-        <div className="mt-5 flex justify-end">
-          <button onClick={onCancel} className="text-sm px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">Cancel</button>
+        </ol>
+
+        <div className="mt-6 flex justify-end">
+          <button
+            onClick={onCancel}
+            className="text-sm px-4 py-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/50 transition-colors"
+          >
+            Cancel
+          </button>
         </div>
       </div>
     </Overlay>
@@ -92,11 +143,21 @@ function LoadingView({ preview, onCancel }) {
 
 function CommittingView({ fileName }) {
   return (
-    <Overlay>
-      <div className="w-full max-w-sm rounded-xl border border-slate-700 bg-slate-900 p-6 text-slate-100 shadow-2xl text-center">
-        <Loader2 size={28} className="animate-spin text-brand mx-auto mb-3" />
-        <div className="font-semibold">Importing {fileName}</div>
-        <div className="text-xs text-slate-400 mt-1">Rendering first sheet and setting up layers…</div>
+    <Overlay size="sm">
+      <div className="import-panel w-full rounded-2xl border border-slate-700/80 bg-gradient-to-b from-slate-900 to-slate-950 p-8 text-slate-100 shadow-2xl shadow-black/40 ring-1 ring-white/5 text-center">
+        <div className="relative w-16 h-16 mx-auto mb-4">
+          <div className="absolute inset-0 rounded-full border-2 border-brand/20" />
+          <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-brand animate-spin" />
+          <div className="absolute inset-2 rounded-xl bg-brand/15 flex items-center justify-center import-file-icon">
+            <FileText size={24} className="text-brand" />
+          </div>
+        </div>
+        <div className="font-semibold text-base">Importing {fileName}</div>
+        <div className="text-sm text-slate-400 mt-1.5">Rendering first sheet and setting up layers…</div>
+        <div className="import-progress-bar mt-5 max-w-[200px] mx-auto">
+          <div className="import-progress-fill w-[65%]" />
+          <div className="import-progress-shimmer" />
+        </div>
       </div>
     </Overlay>
   );
@@ -124,8 +185,8 @@ function PreviewView({ preview, patch, onCancel, onCommit }) {
   const visibleSheets = showAllSheets ? sheetIndex : sheetIndex.slice(0, 10);
 
   return (
-    <Overlay onClose={onCancel}>
-      <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-4xl max-h-[92vh] overflow-hidden flex flex-col text-slate-100 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <Overlay onClose={onCancel} size="lg">
+      <div className="import-panel bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-4xl max-h-[92vh] overflow-hidden flex flex-col text-slate-100 shadow-2xl shadow-black/40 ring-1 ring-white/5" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-800 shrink-0">
           <FileText size={18} className="text-brand" />
           <div className="min-w-0 flex-1">
@@ -286,24 +347,30 @@ function Option({ checked, onChange, icon: Icon, label, hint }) {
   );
 }
 
-function Header({ fileName, subtitle }) {
+function ImportFileHeader({ fileName, subtitle }) {
   return (
-    <div className="flex items-center gap-3">
-      <div className="w-10 h-10 rounded-lg bg-brand/20 text-brand flex items-center justify-center">
-        <FileText size={20} />
+    <div className="flex items-start gap-3.5">
+      <div className="import-file-icon w-12 h-12 rounded-xl bg-gradient-to-br from-brand/25 to-brand/5 text-brand flex items-center justify-center shrink-0 ring-1 ring-brand/20 shadow-inner">
+        <FileText size={22} strokeWidth={2} />
       </div>
-      <div className="min-w-0">
-        <div className="font-semibold truncate">{fileName}</div>
-        {subtitle && <div className="text-xs text-slate-400">{subtitle}</div>}
+      <div className="min-w-0 pt-0.5">
+        <div className="font-semibold text-[15px] truncate leading-tight">{fileName}</div>
+        {subtitle && <div className="text-xs text-slate-400 mt-1 leading-relaxed">{subtitle}</div>}
       </div>
     </div>
   );
 }
 
-function Overlay({ children, onClose }) {
+function Overlay({ children, onClose, size = "sm" }) {
+  const maxW = size === "lg" ? "max-w-4xl" : "max-w-md";
   return (
-    <div className="fixed inset-0 z-[60] bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6" onClick={onClose || undefined}>
-      {children}
+    <div
+      className="import-overlay fixed inset-0 z-[60] bg-slate-950/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 md:p-6"
+      onClick={onClose || undefined}
+    >
+      <div className={`w-full ${maxW} max-h-[92dvh] overflow-y-auto sm:mx-auto`} onClick={(e) => e.stopPropagation()}>
+        {children}
+      </div>
     </div>
   );
 }

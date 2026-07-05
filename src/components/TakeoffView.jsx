@@ -18,7 +18,7 @@ import { traceQty } from "../lib/geometry.js";
 
 function AnalysisPanel({ rollup, grand, onExport, onCollapse, className = "" }) {
   return (
-    <div className={`shrink-0 border-l border-slate-800 bg-slate-950 flex flex-col overflow-y-auto relative ${className}`}>
+    <div className={`shrink-0 border-l border-slate-800/80 bg-slate-950/95 backdrop-blur-sm flex flex-col overflow-y-auto relative takeoff-chrome ${className}`}>
       <div className="sticky top-0 z-20 flex items-center gap-2 px-2 py-1.5 border-b border-slate-800 bg-slate-950/95 backdrop-blur-sm">
         <PanelToggle onClick={onCollapse} expanded side="right" title="Collapse analysis panel" />
         <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Analysis</span>
@@ -65,7 +65,7 @@ export default function TakeoffView() {
       <Header onExport={openExport} hideProjectInfo
         assistantOpen={assistantOpen} onToggleAssistant={toggleAssistant} />
 
-      <div className="flex-1 flex flex-col min-h-0">
+      <div className="flex-1 flex flex-col min-h-0 ring-1 ring-inset ring-slate-800/50">
         <div className="flex-1 flex min-h-0 relative">
           {/* Desktop tools rail */}
           <div className="hidden md:block shrink-0">
@@ -82,10 +82,10 @@ export default function TakeoffView() {
               <button
                 type="button"
                 aria-label="Close tools"
-                className="md:hidden fixed inset-0 top-12 z-40 bg-black/50"
+                className="md:hidden absolute inset-0 z-40 bg-black/50"
                 onClick={toggleTools}
               />
-              <div className="md:hidden fixed left-0 top-12 bottom-[calc(3.25rem+env(safe-area-inset-bottom))] z-50 w-[min(100vw-2.5rem,13rem)] max-w-[88vw] shadow-2xl overflow-y-auto border-r border-slate-800">
+              <div className="md:hidden absolute left-0 top-0 bottom-0 z-50 w-[min(100%,14rem)] max-w-[88vw] shadow-2xl overflow-y-auto border-r border-slate-800 bg-slate-950">
                 <Toolbar collapsed={false} onToggleCollapse={toggleTools} />
               </div>
             </>
@@ -107,7 +107,7 @@ export default function TakeoffView() {
               grand={grand}
               onExport={openExport}
               onCollapse={toggleAnalysis}
-              className="hidden md:flex w-60 xl:w-72"
+              className="hidden md:flex w-64 lg:w-72 xl:w-80 2xl:w-96"
             />
           )}
           {!showAnalysis && !assistantOpen && (
@@ -120,7 +120,7 @@ export default function TakeoffView() {
               <button
                 type="button"
                 aria-label="Close analysis"
-                className="md:hidden fixed inset-0 top-12 z-40 bg-black/50"
+                className="md:hidden absolute inset-0 z-40 bg-black/50"
                 onClick={toggleAnalysis}
               />
               <AnalysisPanel
@@ -128,12 +128,12 @@ export default function TakeoffView() {
                 grand={grand}
                 onExport={openExport}
                 onCollapse={toggleAnalysis}
-                className="md:hidden fixed inset-x-0 top-12 bottom-[calc(3.25rem+env(safe-area-inset-bottom))] z-50 w-full border-l-0 border-t border-slate-800"
+                className="md:hidden absolute inset-x-0 top-0 bottom-0 z-50 w-full border-l-0 border-t border-slate-800 bg-slate-950"
               />
             </>
           )}
 
-          {assistantOpen && <AssistantPanel onClose={() => setAssistantOpen(false)} />}
+          {assistantOpen && <AssistantPanel onClose={() => setAssistantOpen(false)} className="max-md:absolute max-md:inset-0 max-md:z-[55]" />}
         </div>
 
         <MobileTakeoffDock />

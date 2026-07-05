@@ -31,6 +31,16 @@ function confColor(c) {
   return v >= 0.8 ? "#22c55e" : v >= 0.5 ? "#f59e0b" : "#ef4444";
 }
 
+const HI_GREEN = "#22c55e";
+const HI_GREEN_BRIGHT = "#4ade80";
+
+function traceStroke(color, sel, hot, excluded) {
+  if (excluded) return "#94a3b8";
+  if (hot) return HI_GREEN_BRIGHT;
+  if (sel) return HI_GREEN;
+  return color;
+}
+
 export default function PlanCanvas() {
   const s = useStore();
   const { bg, imgEl, ppf, tool, layers, traces, draft, calib, measure, activeId, selId, activePage, suggestions } = s;
@@ -53,7 +63,7 @@ export default function PlanCanvas() {
   const runIndex = useMemo(() => (pageVectors ? buildRunIndex(pageVectors) : null), [pageVectors]);
   const say = (msg) => { setToast(msg); clearTimeout(say._t); say._t = setTimeout(() => setToast(null), 3200); };
 
-  // tools that read the plan's real geometry (hover-measure + click snapping)
+  // tools that read the plan's real geometry
   const wantsVectors = tool === "snap" || tool === "draw" || tool === "rect" || tool === "calibrate" || tool === "measure";
   useEffect(() => {
     if (!wantsVectors || bg.type !== "img" || pageVectors) return;
@@ -94,7 +104,7 @@ export default function PlanCanvas() {
   // owns the Stage transform, so imperative Konva calls get snapped back)
   useEffect(() => {
     window.__planView = {
-      set: setView, get: () => view, size,
+      set: setView, get: () => view, size, fit,
       // exactly the snap-tool hover path, minus the pointer: world coords in,
       // the same grown run the user would see out (and shown on canvas)
       snapProbe: (x, y, tol = 12 / view.scale) => {
@@ -228,19 +238,18 @@ export default function PlanCanvas() {
     return ppf ? `${(d / ppf).toFixed(2)} ft` : `${Math.round(d)} px`;
   };
 
-  const calibLenLabel = (a, b, ppfVal) => {
-    if (!a || !b) return "";
-    const d = Math.hypot(a.x - b.x, a.y - b.y);
-    return ppfVal
-      ? `${Math.round(d)} px · ${(d / ppfVal).toFixed(2)} ft at current scale`
-      : `${Math.round(d)} px on sheet`;
-  };
-
-  // ---- hover inspect + search-to-locate ----
   const [hovered, setHovered] = useState(null); // { kind, obj, sx, sy } transient
   const [pinned, setPinned] = useState(null); // clicked item — persistent card
   const [flash, setFlash] = useState(null); // plan-coord point pulsed after a search hit
   const hoverTimer = useRef();
+  const dragHistoryPushed = useRef(false);
+
+  useEffect(() => {
+    if (tool === "calibrate" || tool === "measure") {
+      setPinned(null);
+      setHovered(null);
+    }
+  }, [tool]);
   const screenPos = (e) => {
     const r = wrapRef.current.getBoundingClientRect();
     return { sx: (e.evt?.clientX ?? 0) - r.left, sy: (e.evt?.clientY ?? 0) - r.top };
@@ -267,6 +276,7 @@ export default function PlanCanvas() {
   };
   const layerName = (id) => layers.find((l) => l.id === id)?.name || "";
   const project = s.activeProject();
+  const canvasMinimal = tool === "calibrate" || tool === "measure";
 
   const confirmDetection = (label, layer, qty) => {
     const addr = project?.address ? ` in ${project.address}` : "";
@@ -274,7 +284,7 @@ export default function PlanCanvas() {
   };
 
   return (
-    <div ref={wrapRef} className="flex-1 min-w-0 bg-slate-800 overflow-hidden relative">
+    <div ref={wrapRef} className="takeoff-canvas flex-1 min-w-0 overflow-hidden relative">
       <ZoomControls onFit={fit} onIn={() => zoomBy(1.25)} onOut={() => zoomBy(1 / 1.25)} pct={Math.round(view.scale * 100)}
         labelsOn={labelsOn} onToggleLabels={() => setLabelsOn((v) => !v)} />
       <Stage
@@ -314,6 +324,10 @@ export default function PlanCanvas() {
             const pick = (e) => { if (tool === "select") { e.cancelBubble = true; s.setSel(tr.id); setPinned({ kind: "trace", obj: tr, ...screenPos(e) }); } };
             const hp = { onClick: pick, onTap: pick, listening: true, ...hoverProps("trace", tr) };
             const dash = excluded ? [10 * inv, 6 * inv] : undefined;
+            const stroke = traceStroke(color, sel, hot, excluded);
+            const glow = hot || sel;
+            const handleFill = hot ? HI_GREEN_BRIGHT : sel ? HI_GREEN : "#fff";
+            const handleStroke = hot || sel ? "#14532d" : stroke;
 
             // vertex handles: drag to move, double-click to remove the point.
             // Dense machine-made traces (flood fills, snapped runs) would drown
@@ -321,9 +335,12 @@ export default function PlanCanvas() {
             const minPts = tr.type === "area" ? 3 : 2;
             const dense = tr.pts.length > 20;
             const handles = sel && tool === "select" && tr.type !== "count" ? tr.pts.map((pt, vi) => (
-              <Circle key={"h" + vi} x={pt.x} y={pt.y} radius={(dense ? 3 : 6) * inv} fill="#fff" stroke={color} strokeWidth={(dense ? 1.25 : 2) * inv}
-                draggable onDragMove={(e) => { e.cancelBubble = true; const np = tr.pts.map((q, qi) => (qi === vi ? { x: e.target.x(), y: e.target.y() } : q)); s.updateTracePts(tr.id, np); }}
-                onDblClick={(e) => { e.cancelBubble = true; if (tr.pts.length > minPts) s.updateTracePts(tr.id, tr.pts.filter((_, qi) => qi !== vi)); }} />
+              <Circle key={"h" + vi} x={pt.x} y={pt.y} radius={(dense ? 3 : 6) * inv} fill={handleFill} stroke={handleStroke} strokeWidth={(dense ? 1.25 : 2) * inv}
+                draggable
+                onDragStart={() => { if (!dragHistoryPushed.current) { s.pushHistory(); dragHistoryPushed.current = true; } }}
+                onDragEnd={() => { dragHistoryPushed.current = false; }}
+                onDragMove={(e) => { e.cancelBubble = true; const np = tr.pts.map((q, qi) => (qi === vi ? { x: e.target.x(), y: e.target.y() } : q)); s.updateTracePts(tr.id, np); }}
+                onDblClick={(e) => { e.cancelBubble = true; if (tr.pts.length > minPts) { s.pushHistory(); s.updateTracePts(tr.id, tr.pts.filter((_, qi) => qi !== vi)); } }} />
             )) : null;
             // midpoint handles: click to insert a vertex there (then drag it)
             const midCount = dense ? 0 : tr.type === "area" ? tr.pts.length : tr.pts.length - 1;
@@ -331,23 +348,22 @@ export default function PlanCanvas() {
               const a = tr.pts[vi], b = tr.pts[(vi + 1) % tr.pts.length];
               const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
               return (
-                <Circle key={"mh" + vi} x={mx} y={my} radius={4 * inv} fill="#0f172a" stroke={color} strokeWidth={1.5 * inv} opacity={0.9}
-                  onClick={(e) => { e.cancelBubble = true; const np = [...tr.pts]; np.splice(vi + 1, 0, { x: mx, y: my }); s.updateTracePts(tr.id, np); }}
-                  onTap={(e) => { e.cancelBubble = true; const np = [...tr.pts]; np.splice(vi + 1, 0, { x: mx, y: my }); s.updateTracePts(tr.id, np); }} />
+                <Circle key={"mh" + vi} x={mx} y={my} radius={4 * inv} fill={hot || sel ? "#14532d" : "#0f172a"} stroke={handleStroke} strokeWidth={1.5 * inv} opacity={0.9}
+                  onClick={(e) => { e.cancelBubble = true; s.pushHistory(); const np = [...tr.pts]; np.splice(vi + 1, 0, { x: mx, y: my }); s.updateTracePts(tr.id, np); }}
+                  onTap={(e) => { e.cancelBubble = true; s.pushHistory(); const np = [...tr.pts]; np.splice(vi + 1, 0, { x: mx, y: my }); s.updateTracePts(tr.id, np); }} />
               );
             }) : null;
 
-            const showChip = labelsOn || emph;
+            const showChip = !canvasMinimal && (labelsOn || emph);
             if (tr.type === "area") {
               const c = centroid(tr.pts);
               const label = isExZone ? "EXCLUDED" : excluded ? "excluded" : `${traceQty(tr, ppf).toFixed(0)} SF`;
               return (
-                <Group key={tr.id}>
-                  <Group {...hp}>
-                    <Line points={flatPts(tr.pts)} closed fill={hexToRgba(color, excluded ? 0.14 : emph ? 0.5 : 0.28)}
-                      stroke={hot ? "#fff" : color} strokeWidth={(emph ? 3 : 2) * inv} dash={dash} />
-                    {showChip && <Chip x={c.x} y={c.y} color={color} inv={inv} text={label} center />}
-                  </Group>
+                <Group key={tr.id} {...hp}>
+                  <Line points={flatPts(tr.pts)} closed fill={hexToRgba(stroke, excluded ? 0.14 : hot ? 0.38 : sel ? 0.32 : 0.28)}
+                    stroke={stroke} strokeWidth={(hot ? 3.5 : emph ? 3 : 2) * inv} dash={dash}
+                    shadowColor={glow ? (hot ? HI_GREEN_BRIGHT : HI_GREEN) : undefined} shadowBlur={glow ? (hot ? 10 : 6) * inv : 0} shadowOpacity={0.9} />
+                  {showChip && <Chip x={c.x} y={c.y} color={hot ? HI_GREEN_BRIGHT : sel ? HI_GREEN : color} inv={inv} text={label} center />}
                   {midHandles}
                   {handles}
                 </Group>
@@ -356,12 +372,11 @@ export default function PlanCanvas() {
             if (tr.type === "linear") {
               const mid = tr.pts[Math.floor(tr.pts.length / 2)];
               return (
-                <Group key={tr.id}>
-                  <Group {...hp}>
-                    <Line points={flatPts(tr.pts)} stroke={hot ? "#fff" : color} strokeWidth={(emph ? 6 : 4) * inv}
-                      lineCap="round" lineJoin="round" hitStrokeWidth={14 * inv} dash={dash} />
-                    {showChip && <Chip x={mid.x} y={mid.y} color={color} inv={inv} text={excluded ? "excluded" : `${traceQty(tr, ppf).toFixed(1)} LF`} center />}
-                  </Group>
+                <Group key={tr.id} {...hp}>
+                  <Line points={flatPts(tr.pts)} stroke={stroke} strokeWidth={(hot ? 7 : emph ? 6 : 4) * inv}
+                    lineCap="round" lineJoin="round" hitStrokeWidth={14 * inv} dash={dash}
+                    shadowColor={glow ? (hot ? HI_GREEN_BRIGHT : HI_GREEN) : undefined} shadowBlur={glow ? (hot ? 12 : 8) * inv : 0} shadowOpacity={0.9} />
+                  {showChip && <Chip x={mid.x} y={mid.y} color={hot ? HI_GREEN_BRIGHT : sel ? HI_GREEN : color} inv={inv} text={excluded ? "excluded" : `${traceQty(tr, ppf).toFixed(1)} LF`} center />}
                   {midHandles}
                   {handles}
                 </Group>
@@ -369,10 +384,12 @@ export default function PlanCanvas() {
             }
             const p = tr.pts[0];
             return (
-              <Group key={tr.id}>
-                <Pin x={p.x} y={p.y} color={color} inv={inv} hot={emph} />
+              <Group key={tr.id} {...hp}>
+                <Pin x={p.x} y={p.y} color={hot ? HI_GREEN_BRIGHT : sel ? HI_GREEN : color} inv={inv} hot={emph} />
                 <HitDot x={p.x} y={p.y} inv={inv} draggable={sel && tool === "select"}
-                  onDragMove={(e) => s.updateTracePts(tr.id, [{ x: e.target.x(), y: e.target.y() }])} hp={hp} />
+                  onDragStart={() => { if (!dragHistoryPushed.current) { s.pushHistory(); dragHistoryPushed.current = true; } }}
+                  onDragEnd={() => { dragHistoryPushed.current = false; }}
+                  onDragMove={(e) => s.updateTracePts(tr.id, [{ x: e.target.x(), y: e.target.y() }])} />
               </Group>
             );
           })}
@@ -412,7 +429,7 @@ export default function PlanCanvas() {
                 : `${sg.element || sg.layerName || "AI"} · ${Math.round((sg.confidence || 0) * 100)}%`;
             const pinIt = (e) => { e.cancelBubble = true; setPinned({ kind: "suggestion", obj: sg, ...screenPos(e) }); };
             const hp = { onClick: pinIt, onTap: pinIt, listening: true, ...hoverProps("suggestion", sg) };
-            const showChip = hot || labelsOn;
+            const showChip = !canvasMinimal && (hot || labelsOn);
             return (
               <Group key={sg.id}>
                 <Group {...hp}>
@@ -449,12 +466,12 @@ export default function PlanCanvas() {
             const ends = [snapHit.pts[0], snapHit.pts[snapHit.pts.length - 1]];
             return (
               <Group listening={false}>
-                <Line points={flatPts(snapHit.pts)} closed={snapHit.closed} stroke="#22d3ee" strokeWidth={3 * inv}
-                  lineCap="round" lineJoin="round" shadowColor="#22d3ee" shadowBlur={6 * inv} shadowOpacity={0.9} />
+                <Line points={flatPts(snapHit.pts)} closed={snapHit.closed} stroke={HI_GREEN_BRIGHT} strokeWidth={4 * inv}
+                  lineCap="round" lineJoin="round" shadowColor={HI_GREEN} shadowBlur={10 * inv} shadowOpacity={0.95} />
                 {ends.map((p, i) => (
-                  <Circle key={i} x={p.x} y={p.y} radius={4 * inv} fill="#22d3ee" stroke="#fff" strokeWidth={1.5 * inv} />
+                  <Circle key={i} x={p.x} y={p.y} radius={4 * inv} fill={HI_GREEN_BRIGHT} stroke="#14532d" strokeWidth={1.5 * inv} />
                 ))}
-                <Chip x={mid.x} y={mid.y} color="#0891b2" inv={inv} text={txt} center />
+                <Chip x={mid.x} y={mid.y} color={HI_GREEN} inv={inv} text={txt} center />
               </Group>
             );
           })()}
@@ -500,24 +517,27 @@ export default function PlanCanvas() {
               color="#fbbf24"
               accent="#f59e0b"
               draft={calib.length < 2}
-              label={
-                calib.length === 2 || (calib.length === 1 && hover)
-                  ? calibLenLabel(calib[0], calib.length === 2 ? calib[1] : hover, ppf)
-                  : null
-              }
             />
           )}
         </Layer>
       </Stage>
 
       {toast && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 max-w-md px-3 py-2 rounded-lg bg-slate-900/95 border border-amber-700/60 text-[12px] text-amber-200 shadow-lg">
+        <div className="canvas-toast absolute top-14 left-1/2 -translate-x-1/2 z-50 max-w-md px-4 py-2.5 rounded-xl bg-slate-950/95 border border-amber-700/50 text-sm text-amber-100 shadow-xl backdrop-blur-sm">
           {toast}
         </div>
       )}
 
-      {(tool === "measure" || tool === "calibrate") && (
-        <MeasureToolHud tool={tool} measure={measure} calib={calib} hover={hover} ppf={ppf} measFeet={measFeet} />
+      {tool === "measure" && (
+        <MeasureToolHud measure={measure} hover={hover} ppf={ppf} measFeet={measFeet} />
+      )}
+
+      {tool === "calibrate" && calib.length < 2 && (
+        <div className="absolute bottom-[4.5rem] left-1/2 -translate-x-1/2 z-20 pointer-events-none max-md:bottom-[5.5rem]">
+          <div className="px-3 py-1.5 rounded-full bg-slate-950/75 border border-amber-800/40 text-[11px] text-amber-200/90 shadow-md backdrop-blur-sm">
+            {calib.length === 0 ? "Click the first point on a known distance" : "Click the second point — use the toolbar to enter feet"}
+          </div>
+        </div>
       )}
 
       {/* quick actions on the selected trace — Exclude / Duplicate / Delete
@@ -580,9 +600,12 @@ export default function PlanCanvas() {
 
       <SheetLoadOverlay />
 
-      {bg.type !== "empty" && <CanvasSearch traces={pageTraces} suggestions={suggestions} layerName={layerName} qtyText={qtyText} onLocate={locate} />}
+      {bg.type !== "empty" && !canvasMinimal && (
+        <CanvasSearch traces={pageTraces} suggestions={suggestions} layerName={layerName} qtyText={qtyText} onLocate={locate} />
+      )}
 
       {(() => {
+        if (canvasMinimal) return null;
         const card = pinned || hovered;
         if (!card) return null;
         const isPinned = !!pinned;
@@ -612,14 +635,16 @@ function UploadPrompt({ traceCount }) {
   const onFile = async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) await importPlanFile(f, useStore.getState()); };
   return (
     <div className="absolute inset-0 z-20 flex items-center justify-center p-6">
-      <div className="text-center max-w-xs">
-        <div className="mx-auto w-14 h-14 rounded-xl bg-slate-800 flex items-center justify-center text-brand mb-3"><UploadCloud size={26} /></div>
-        <div className="text-slate-200 font-semibold">Upload a plan to start</div>
-        <div className="text-sm text-slate-500 mt-1">PDF plan set or image. Drag &amp; drop onto the canvas, or</div>
-        <button onClick={() => ref.current?.click()} className="mt-3 inline-flex items-center gap-1.5 text-sm px-3.5 py-2 rounded-lg bg-brand hover:bg-brand2 text-white font-medium">
-          <UploadCloud size={15} /> Upload plan
+      <div className="upload-prompt-card text-center max-w-sm rounded-2xl border border-slate-700/60 bg-slate-950/80 backdrop-blur-md p-8 shadow-2xl shadow-black/40">
+        <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-brand/25 to-brand/5 flex items-center justify-center text-brand mb-4 ring-1 ring-brand/20 import-file-icon">
+          <UploadCloud size={28} />
+        </div>
+        <div className="text-slate-100 font-semibold text-lg">Upload a plan to start</div>
+        <div className="text-sm text-slate-400 mt-2 leading-relaxed">PDF plan set or image. Drag &amp; drop onto the canvas, or use the button below.</div>
+        <button onClick={() => ref.current?.click()} className="desk-btn-primary mt-5 inline-flex items-center gap-2 text-sm px-5 py-2.5 rounded-lg font-medium">
+          <UploadCloud size={16} /> Upload plan
         </button>
-        {traceCount > 0 && <div className="text-[11px] text-emerald-400/90 mt-3">{traceCount} saved trace{traceCount === 1 ? "" : "s"} — they reload with the plan after refresh.</div>}
+        {traceCount > 0 && <div className="text-xs text-emerald-400/90 mt-4">{traceCount} saved trace{traceCount === 1 ? "" : "s"} — reload with the plan after refresh.</div>}
         <input ref={ref} type="file" accept={ACCEPT} className="hidden" onChange={onFile} />
       </div>
     </div>
@@ -628,15 +653,15 @@ function UploadPrompt({ traceCount }) {
 
 function ZoomControls({ onFit, onIn, onOut, pct, labelsOn, onToggleLabels }) {
   return (
-    <div className="absolute bottom-3 left-3 max-md:bottom-2 max-md:left-2 z-30 flex items-center gap-1 rounded-lg bg-slate-900/90 border border-slate-700 p-1 shadow-lg touch-manipulation">
-      <button onClick={onOut} aria-label="Zoom out" className="w-8 h-8 md:w-7 md:h-7 flex items-center justify-center rounded hover:bg-slate-700 text-slate-200 text-lg leading-none">−</button>
-      <button onClick={onFit} aria-label="Reset zoom" className="px-2 h-8 md:h-7 rounded hover:bg-slate-700 text-slate-300 text-xs tabular-nums min-w-[3rem]">{pct}%</button>
-      <button onClick={onIn} aria-label="Zoom in" className="w-8 h-8 md:w-7 md:h-7 flex items-center justify-center rounded hover:bg-slate-700 text-slate-200 text-lg leading-none">+</button>
-      <div className="w-px h-5 bg-slate-700 mx-0.5" />
-      <button onClick={onFit} aria-label="Fit page to screen" title="Fit to screen (F)" className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-700 text-slate-200"><Maximize size={14} /></button>
-      <button onClick={onToggleLabels} aria-label="Toggle labels" title={labelsOn ? "Hide labels — keep the sheet clean" : "Show all labels"}
-        className={`w-7 h-7 flex items-center justify-center rounded hover:bg-slate-700 ${labelsOn ? "text-brand" : "text-slate-500"}`}>
-        {labelsOn ? <Eye size={14} /> : <EyeOff size={14} />}
+    <div className="canvas-zoom-dock absolute bottom-4 left-4 max-md:bottom-3 max-md:left-3 z-30 flex items-center gap-0.5 p-1 touch-manipulation">
+      <button onClick={onOut} aria-label="Zoom out" className="w-9 h-9 md:w-8 md:h-8 flex items-center justify-center rounded-lg text-slate-200 text-lg leading-none font-light">−</button>
+      <button onClick={onFit} aria-label="Reset zoom" title="Click to fit (F)" className="px-2.5 h-9 md:h-8 rounded-lg hover:bg-slate-800/90 text-slate-300 text-xs font-medium tabular-nums min-w-[3.25rem]">{pct}%</button>
+      <button onClick={onIn} aria-label="Zoom in" className="w-9 h-9 md:w-8 md:h-8 flex items-center justify-center rounded-lg text-slate-200 text-lg leading-none font-light">+</button>
+      <div className="w-px h-6 bg-slate-700/80 mx-0.5" />
+      <button onClick={onFit} aria-label="Fit page to screen" title="Fit to screen (F)" className="w-9 h-9 md:w-8 md:h-8 flex items-center justify-center rounded-lg text-slate-200 hover:text-brand"><Maximize size={15} /></button>
+      <button onClick={onToggleLabels} aria-label="Toggle labels" title={labelsOn ? "Hide quantity labels" : "Show quantity labels"}
+        className={`w-9 h-9 md:w-8 md:h-8 flex items-center justify-center rounded-lg transition-colors ${labelsOn ? "text-brand bg-brand/10" : "text-slate-500 hover:text-slate-300"}`}>
+        {labelsOn ? <Eye size={15} /> : <EyeOff size={15} />}
       </button>
     </div>
   );
@@ -701,51 +726,30 @@ function Endpoint({ x, y, inv, color, accent, fixed, draft }) {
   );
 }
 
-// Floating HUD while measure / calibrate is active — large live readout.
-function MeasureToolHud({ tool, measure, calib, hover, ppf, measFeet }) {
+// Compact bottom strip for Quick ruler — calibrate uses the toolbar panel only.
+function MeasureToolHud({ measure, hover, ppf, measFeet }) {
   const isMeasure = tool === "measure";
-  const color = isMeasure ? "cyan" : "amber";
-  const border = isMeasure ? "border-cyan-700/60" : "border-amber-700/60";
-  const text = isMeasure ? "text-cyan-200" : "text-amber-200";
-  const badge = isMeasure ? "bg-cyan-950/80 text-cyan-300" : "bg-amber-950/80 text-amber-300";
+  const border = "border-cyan-700/50";
+  const text = "text-cyan-200";
 
   let step = "", live = null;
-  if (isMeasure) {
-    if (!measure?.a) step = "Click the first point";
-    else if (!measure.b) {
-      step = "Drag to second point — click to set";
-      if (hover) live = measFeet(measure.a, hover);
-    } else {
-      step = "Click again to start a new measurement · Esc to exit";
-      live = measFeet(measure.a, measure.b);
-    }
+  if (!measure?.a) step = "Click the first point";
+  else if (!measure.b) {
+    step = "Click the second point";
+    if (hover) live = measFeet(measure.a, hover);
   } else {
-    if (calib.length === 0) step = "Click the first point of a known distance";
-    else if (calib.length === 1) {
-      step = "Drag to the second point — click to set";
-      if (hover) live = measFeet(calib[0], hover);
-    } else {
-      const px = Math.round(Math.hypot(calib[0].x - calib[1].x, calib[0].y - calib[1].y));
-      step = "Enter the real-world distance in the toolbar";
-      live = `${px} px on sheet`;
-    }
+    step = "Esc to exit · click for a new line";
+    live = measFeet(measure.a, measure.b);
   }
 
   return (
-    <div className={`absolute top-14 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-1.5 pointer-events-none`}>
-      {live && (
-        <div className={`px-4 py-2 rounded-xl bg-slate-950/95 border ${border} shadow-xl`}>
-          <div className={`text-2xl font-bold tabular-nums tracking-tight ${text}`}>{live}</div>
-          {!ppf && isMeasure && measure?.a && !measure.b && (
-            <div className="text-[10px] text-slate-500 text-center mt-0.5">Set scale for feet</div>
-          )}
-        </div>
-      )}
-      <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/95 border ${border} text-[11px] ${text} shadow-lg`}>
-        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${badge}`}>
-          {isMeasure ? "Ruler" : "Calibrate"}
-        </span>
-        <span className="text-slate-300">{step}</span>
+    <div className="absolute bottom-[4.5rem] left-4 max-md:bottom-[5.5rem] max-md:left-3 z-20 pointer-events-none">
+      <div className={`flex flex-col gap-0.5 px-3 py-2 rounded-xl bg-slate-950/80 border ${border} shadow-lg backdrop-blur-sm max-w-[14rem]`}>
+        {live && <div className={`text-base font-bold tabular-nums ${text}`}>{live}</div>}
+        <div className="text-[10px] text-slate-400 leading-snug">{step}</div>
+        {!ppf && measure?.a && !measure.b && (
+          <div className="text-[9px] text-slate-500">Set scale for feet</div>
+        )}
       </div>
     </div>
   );
@@ -790,8 +794,9 @@ function Pin({ x, y, color, inv, hot, ghost }) {
 
 // Invisible hit target so a listening=false marker (Pin) is still hoverable /
 // clickable / draggable. Sits over the pin tip.
-function HitDot({ x, y, inv, draggable, onDragMove, hp }) {
-  return <Circle x={x} y={y} radius={22 * inv} fill="transparent" draggable={draggable} onDragMove={onDragMove} {...hp} />;
+function HitDot({ x, y, inv, draggable, onDragStart, onDragEnd, onDragMove, hp }) {
+  return <Circle x={x} y={y} radius={22 * inv} fill="transparent" draggable={draggable}
+    onDragStart={onDragStart} onDragEnd={onDragEnd} onDragMove={onDragMove} {...hp} />;
 }
 
 /* demo shell plan (~33' x 72' at 8 px/ft) drawn with Konva shapes */

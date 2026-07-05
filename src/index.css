@@ -5,27 +5,245 @@
 html, body, #root { height: 100%; margin: 0; }
 body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
 
+:root {
+  --header-h: 3rem;
+  --mobile-nav-h: calc(3.25rem + env(safe-area-inset-bottom, 0px));
+  --takeoff-dock-h: 2.75rem;
+  --sheet-strip-h: 2.25rem;
+}
+
 @layer utilities {
   .pb-mobile-nav {
-    padding-bottom: calc(3.25rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: var(--mobile-nav-h);
   }
   .bottom-mobile-nav {
-    bottom: calc(3.25rem + env(safe-area-inset-bottom, 0px));
+    bottom: var(--mobile-nav-h);
   }
   .bottom-mobile-dock {
-    bottom: calc(6.75rem + env(safe-area-inset-bottom, 0px));
+    bottom: calc(var(--takeoff-dock-h) + var(--sheet-strip-h) + env(safe-area-inset-bottom, 0px));
   }
   .takeoff-header {
     /* Avoid host-app global `header { … }` rules collapsing the toolbar when embedded */
     display: flex !important;
+    min-height: var(--header-h);
+  }
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+  .touch-target {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+  @media (min-width: 768px) {
+    .touch-target-none {
+      min-height: 0;
+      min-width: 0;
+    }
   }
 }
 
 @layer components {
   .input {
-    @apply w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-700 text-sm text-slate-100
-           placeholder:text-slate-600 focus:outline-none focus:border-brand;
+    @apply w-full px-2.5 py-1.5 rounded-md bg-slate-950 border border-slate-700 text-sm text-slate-100
+           placeholder:text-slate-600 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand/30 transition-colors;
   }
+
+  .page-shell {
+    @apply max-w-[1400px];
+  }
+
+  .desk-card {
+    @apply shadow-none;
+  }
+
+  @media (min-width: 768px) {
+    .desk-card {
+      @apply shadow-sm shadow-black/20;
+    }
+    .desk-card:hover {
+      @apply shadow-md shadow-black/25 -translate-y-px;
+    }
+  }
+
+  .desk-stat {
+    @apply transition-colors hover:border-slate-700 hover:bg-slate-900/80;
+  }
+
+  .desk-btn-primary {
+    @apply bg-brand hover:bg-brand2 text-white shadow-sm hover:shadow-md transition-all;
+  }
+
+  .import-overlay {
+    animation: import-overlay-in 0.28s ease-out both;
+  }
+
+  .import-panel {
+    animation: import-panel-in 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .import-progress-bar {
+    @apply relative h-2 rounded-full bg-slate-800 overflow-hidden;
+  }
+
+  .import-progress-fill {
+    @apply h-full rounded-full bg-gradient-to-r from-brand via-brand2 to-brand transition-[width] duration-500 ease-out;
+    box-shadow: 0 0 12px rgba(47, 127, 209, 0.45);
+  }
+
+  .import-progress-shimmer {
+    @apply absolute inset-0 -translate-x-full;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.22), transparent);
+    animation: import-shimmer 1.6s ease-in-out infinite;
+  }
+
+  .import-step {
+    animation: import-step-in 0.35s ease-out both;
+  }
+
+  .import-step-active .import-step-dot {
+    animation: import-pulse 1.4s ease-in-out infinite;
+    box-shadow: 0 0 0 0 rgba(47, 127, 209, 0.45);
+  }
+
+  .import-step-done .import-step-check {
+    animation: import-check-pop 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .import-file-icon {
+    animation: import-icon-float 2.4s ease-in-out infinite;
+  }
+
+  .takeoff-canvas {
+    background-color: #1e293b;
+    background-image:
+      radial-gradient(circle at 50% 0%, rgba(47, 127, 209, 0.08), transparent 55%),
+      linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 100% 100%, 24px 24px, 24px 24px;
+  }
+
+  .takeoff-chrome {
+    animation: takeoff-fade-in 0.35s ease-out both;
+  }
+
+  .canvas-search-pill {
+    animation: takeoff-scale-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .canvas-zoom-dock {
+    @apply rounded-xl border border-slate-700/60 bg-slate-950/90 backdrop-blur-md shadow-xl shadow-black/30;
+    animation: takeoff-fade-in 0.4s ease-out 0.1s both;
+  }
+
+  .canvas-zoom-dock button {
+    @apply transition-all duration-150;
+  }
+  .canvas-zoom-dock button:hover {
+    @apply bg-slate-800/90 scale-105;
+  }
+  .canvas-zoom-dock button:active {
+    @apply scale-95;
+  }
+
+  .toolbar-btn-active {
+    @apply ring-2 ring-brand/40 shadow-md shadow-brand/10;
+  }
+
+  .toolbar-icon-btn {
+    @apply transition-all duration-150;
+  }
+  .toolbar-icon-btn:hover:not(:disabled) {
+    @apply scale-105;
+  }
+
+  .sheet-thumb-active {
+    animation: sheet-select 0.3s ease-out both;
+  }
+
+  .header-ai-on {
+    animation: ai-glow 2s ease-in-out infinite;
+  }
+
+  .drop-zone-active {
+    animation: drop-pulse 1.2s ease-in-out infinite;
+  }
+
+  .canvas-toast {
+    animation: takeoff-fade-in 0.2s ease-out both;
+  }
+
+  .upload-prompt-card {
+    animation: takeoff-scale-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+}
+
+@keyframes import-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes import-panel-in {
+  from { opacity: 0; transform: translateY(18px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes import-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+@keyframes import-step-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes import-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(47, 127, 209, 0.35); }
+  50% { box-shadow: 0 0 0 6px rgba(47, 127, 209, 0); }
+}
+
+@keyframes import-check-pop {
+  from { opacity: 0; transform: scale(0.5); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes import-icon-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@keyframes import-spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes takeoff-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes takeoff-scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes ai-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.35); }
+  50% { box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.15); }
+}
+
+@keyframes drop-pulse {
+  0%, 100% { border-color: rgba(47, 127, 209, 0.55); }
+  50% { border-color: rgba(47, 127, 209, 1); }
+}
+
+@keyframes sheet-select {
+  from { box-shadow: 0 0 0 0 rgba(47, 127, 209, 0.5); }
+  to { box-shadow: 0 0 0 3px rgba(47, 127, 209, 0.25); }
 }
 
 /* Plan Estimator page — hide host header description */

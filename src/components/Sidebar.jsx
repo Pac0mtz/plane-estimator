@@ -14,12 +14,14 @@ const NAV = [
 export default function Sidebar() {
   const { view, setView, projects, clients } = useStore();
   const active = useStore((s) => s.activeProject());
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth >= 1280 : true
+  );
 
-  // Auto-collapse on narrow screens only — never force-expand on wide.
   useEffect(() => {
     const onResize = () => {
       if (window.innerWidth < 1100) setOpen(false);
+      else if (window.innerWidth >= 1280) setOpen(true);
     };
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
@@ -28,13 +30,13 @@ export default function Sidebar() {
   const counts = { projects: projects.length, clients: clients.length };
 
   return (
-    <nav className={`hidden md:flex ${open ? "w-52" : "w-14"} shrink-0 border-r border-slate-800 bg-slate-950 flex-col transition-all duration-200`}>
-      <div className={`flex items-center ${open ? "gap-2 px-2" : "justify-center px-1"} h-12 border-b border-slate-800`}>
+    <nav className={`hidden md:flex ${open ? "w-56 lg:w-60" : "w-14"} shrink-0 border-r border-slate-800/80 bg-slate-950 flex-col transition-all duration-200`}>
+      <div className={`flex items-center ${open ? "gap-2.5 px-3" : "justify-center px-1"} h-14 border-b border-slate-800/80`}>
         {open && (
           <>
-            <div className="w-7 h-7 rounded flex items-center justify-center font-black text-sm shrink-0"
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm shrink-0 shadow-sm"
               style={{ background: "linear-gradient(135deg,#0a2540,#2f7fd1)" }}>P</div>
-            <span className="font-bold tracking-tight text-slate-100 truncate flex-1 min-w-0">Plan Forge</span>
+            <span className="font-bold tracking-tight text-slate-100 truncate flex-1 min-w-0 text-[15px]">Plan Forge</span>
           </>
         )}
         <PanelToggle
@@ -52,8 +54,8 @@ export default function Sidebar() {
           const on = view === key;
           return (
             <button key={key} onClick={() => setView(key)} title={label}
-              className={`flex items-center gap-2.5 rounded px-2.5 py-2 text-sm transition-colors ${
-                on ? "bg-brand text-white" : "text-slate-300 hover:bg-slate-800"
+              className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                on ? "bg-brand text-white shadow-sm" : "text-slate-300 hover:bg-slate-800/80 hover:text-slate-100"
               }`}>
               <Icon size={17} className="shrink-0" />
               {open && <span className="flex-1 text-left">{label}</span>}

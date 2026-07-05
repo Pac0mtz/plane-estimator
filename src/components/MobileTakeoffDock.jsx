@@ -46,7 +46,7 @@ export default function MobileTakeoffDock() {
 
   return (
     <div
-      className="md:hidden shrink-0 flex items-stretch border-t border-slate-800 bg-slate-950/95 backdrop-blur-sm"
+      className="md:hidden shrink-0 flex items-stretch border-t border-slate-800 bg-slate-950/95 backdrop-blur-sm pb-[env(safe-area-inset-bottom)]"
       aria-label="Takeoff panels">
       <DockBtn icon={Wrench} label="Tools" active={showTools} onClick={openTools} />
       <DockBtn icon={BarChart3} label="Analysis" active={showAnalysis} onClick={openAnalysis} />
