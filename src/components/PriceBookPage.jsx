@@ -68,17 +68,18 @@ export default function PriceBookPage() {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-6">
-      <div className="flex flex-wrap items-center gap-3 mb-4 max-w-4xl mx-auto w-full">
-        <BookOpen className="text-brand" />
-        <h1 className="text-xl font-bold">Price book</h1>
+    <div className="flex-1 overflow-y-auto p-4 md:p-6">
+      <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-4 max-w-4xl mx-auto w-full">
+        <BookOpen className="text-brand shrink-0" />
+        <h1 className="text-lg md:text-xl font-bold">Price book</h1>
         <span className="text-sm text-slate-500 hidden md:inline">{keys.length} assemblies · material + labor + equipment</span>
-        <div className="flex-1" />
-        <div className="relative">
+        <div className="flex-1 min-w-[1rem]" />
+        <div className="relative w-full sm:w-auto order-last sm:order-none">
           <Search size={14} className="absolute left-2.5 top-2.5 text-slate-500" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" aria-label="Search price book"
-            className="pl-8 pr-2 py-1.5 rounded bg-slate-950 border border-slate-700 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-brand w-36" />
+            className="w-full sm:w-36 pl-8 pr-2 py-1.5 rounded bg-slate-950 border border-slate-700 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-brand" />
         </div>
+        <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
         <div className="relative">
           <button onClick={() => setMenu((v) => !v)} className="flex items-center gap-1.5 text-sm px-3 py-2 rounded bg-slate-800 hover:bg-slate-700"><Download size={15} /> Export</button>
           {menu && (
@@ -88,11 +89,12 @@ export default function PriceBookPage() {
             </div>
           )}
         </div>
-        <button onClick={() => setTradeResearchOpen(true)} className="flex items-center gap-1.5 text-sm px-3 py-2 rounded bg-violet-950 border border-violet-800/60 hover:bg-violet-900 text-violet-100"><Sparkles size={15} /> Find trades</button>
-        <button onClick={() => setResearchOpen(true)} className="flex items-center gap-1.5 text-sm px-3 py-2 rounded bg-violet-800/80 hover:bg-violet-700 text-violet-100"><Sparkles size={15} /> Update prices</button>
-        <button onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 text-sm px-3 py-2 rounded bg-slate-800 hover:bg-slate-700"><Upload size={15} /> Import</button>
+        <button onClick={() => setTradeResearchOpen(true)} className="flex items-center gap-1.5 text-sm px-2.5 md:px-3 py-2 rounded bg-violet-950 border border-violet-800/60 hover:bg-violet-900 text-violet-100"><Sparkles size={15} /> <span className="hidden sm:inline">Find trades</span><span className="sm:hidden">Trades</span></button>
+        <button onClick={() => setResearchOpen(true)} className="flex items-center gap-1.5 text-sm px-2.5 md:px-3 py-2 rounded bg-violet-800/80 hover:bg-violet-700 text-violet-100"><Sparkles size={15} /> <span className="hidden sm:inline">Update prices</span><span className="sm:hidden">Prices</span></button>
+        <button onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 text-sm px-2.5 md:px-3 py-2 rounded bg-slate-800 hover:bg-slate-700"><Upload size={15} /> Import</button>
         <button onClick={() => confirm("Reset all prices to built-in defaults?") && resetPriceBook()} title="Reset to defaults" aria-label="Reset to defaults" className="flex items-center gap-1.5 text-sm px-2.5 py-2 rounded bg-slate-800 hover:bg-slate-700"><RotateCcw size={15} /></button>
         <input ref={fileRef} type="file" accept="application/json,.json,text/csv,.csv" className="hidden" onChange={onImport} />
+        </div>
       </div>
 
       {/* location tabs — each saved market has its own price book */}

@@ -8,6 +8,7 @@ import { openPdf, renderPage, closePdf } from "./pdf.js";
 import { useStore, START_LAYERS } from "../store/useStore.js";
 import { hasKey, detectScale } from "./aiDetect.js";
 import { generatePlanSummary } from "./planAssistant.js";
+import { persistUploadedPlan } from "./restorePlan.js";
 
 const DEFAULT_ASMS = START_LAYERS.map((l) => l.asm);
 export const DEFAULT_IMPORT_OPTIONS = {
@@ -83,10 +84,11 @@ async function detectTradesForPreview(store) {
 
 // Phase 1 — read the PDF and build thumbnails; keep the doc open for commit.
 export async function beginPdfImport(file, store, onError = (m) => store.setAiError(m)) {
-  store.setImportPreview({
-    phase: "loading",
-    fileName: file.name,
-    progress: { stage: "reading", page: 0, total: 0, pct: 0 },
+    store.setImportPreview({
+      phase: "loading",
+      fileName: file.name,
+      sourceFile: file,
+      progress: { stage: "reading", page: 0, total: 0, pct: 0 },
     selectedAsms: [...DEFAULT_ASMS],
     options: { ...DEFAULT_IMPORT_OPTIONS },
   });
@@ -124,7 +126,7 @@ export async function commitPdfImport(store, onError = (m) => store.setAiError(m
   store.setImportProgress({ stage: "rendering", page: 0, total: thumbs.length, pct: 0 });
 
   try {
-    store.loadPdf(thumbs, sheetIndex);
+    store.loadPdf(thumbs, sheetIndex, prev.fileName);
     if (options.replaceLayers) store.setLayersFromAsms(selectedAsms);
     else store.addLayersForAsms(selectedAsms);
 
@@ -134,6 +136,8 @@ export async function commitPdfImport(store, onError = (m) => store.setAiError(m
     });
     store.setPageImage(0, first);
     store.setPageLoad(null);
+
+    if (prev.sourceFile) await persistUploadedPlan(store, prev.sourceFile);
 
     if (options.openAssistant) {
       store.setAssistantOpen(true);
@@ -174,9 +178,12 @@ export async function importPlanFile(file, store, onError = (m) => store.setAiEr
 
   if (isImage(file)) {
     const rd = new FileReader();
-    rd.onload = () => {
+    rd.onload = async () => {
       const img = new Image();
-      img.onload = () => store.loadImage(rd.result, img);
+      img.onload = async () => {
+        store.loadImage(rd.result, img, file.name);
+        await persistUploadedPlan(store, file);
+      };
       img.onerror = () => onError("Could not read that image.");
       img.src = rd.result;
     };

@@ -20,9 +20,10 @@ function HBtn({ icon: Icon, label, onClick, disabled, tone = "ghost", on, show =
   );
 }
 
-export default function Header({ onExport, projectName, assistantOpen, onToggleAssistant }) {
+export default function Header({ onExport, assistantOpen, onToggleAssistant, hideProjectInfo = false }) {
   const s = useStore();
-  const { ppf, ppfNote } = s;
+  const { ppf } = s;
+  const project = s.activeProject();
   const fileRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const dpi = s.bg.type === "img" ? s.pages[s.activePage]?.dpi : null;
@@ -37,13 +38,28 @@ export default function Header({ onExport, projectName, assistantOpen, onToggleA
   };
 
   return (
-    <header className="flex items-center gap-2 px-3 h-12 border-b border-slate-800 bg-slate-950 text-slate-100 shrink-0">
-      {/* project + status */}
+    <div
+      role="toolbar"
+      aria-label="Takeoff tools"
+      className="takeoff-header flex items-center gap-2 px-3 h-12 min-h-12 border-b border-slate-800 bg-slate-950 text-slate-100 shrink-0 sticky top-0 z-30">
       <div className="flex items-center gap-2 min-w-0">
-        <span className="font-semibold tracking-tight truncate max-w-[110px] sm:max-w-[180px]">{projectName || "Takeoff"}</span>
-        <span className="hidden sm:flex items-center gap-1 text-[11px] px-2 h-6 rounded bg-slate-800 text-slate-300 shrink-0">
-          {s.scaleReading ? <Loader2 size={11} className="animate-spin text-violet-400" /> : <Ruler size={11} className="text-slate-500" />}
-          {s.scaleReading ? <span className="text-violet-300">reading scale…</span> : ppf ? <b className="text-emerald-400">{ppf.toFixed(1)} px/ft</b> : <b className="text-amber-400">not set</b>}
+        {!hideProjectInfo && project?.name ? (
+          <span className="font-semibold tracking-tight truncate max-w-[88px] sm:max-w-[180px]">{project.name}</span>
+        ) : (
+          <span className="font-semibold tracking-tight text-slate-200 shrink-0">Takeoff</span>
+        )}
+        <span className="flex items-center gap-1 text-[10px] sm:text-[11px] px-1.5 sm:px-2 h-5 sm:h-6 rounded bg-slate-800 text-slate-300 shrink-0 tabular-nums">
+          {s.scaleReading ? (
+            <>
+              <Loader2 size={11} className="animate-spin text-violet-400 shrink-0" />
+              <span className="text-violet-300 hidden sm:inline">reading scale…</span>
+            </>
+          ) : (
+            <>
+              <Ruler size={11} className="text-slate-500 shrink-0 hidden sm:block" />
+              {ppf ? <b className="text-emerald-400">{ppf.toFixed(1)} px/ft</b> : <b className="text-amber-400">not set</b>}
+            </>
+          )}
         </span>
         {dpi && <span className="hidden md:inline text-[11px] px-2 h-6 leading-6 rounded bg-slate-800 text-slate-400 shrink-0"><b className="text-slate-200">{dpi}</b> dpi</span>}
       </div>
@@ -54,20 +70,20 @@ export default function Header({ onExport, projectName, assistantOpen, onToggleA
           is done with Read dimensions + Measure wall in the toolbar. */}
       <div className="flex items-center gap-1.5">
         <HBtn icon={Sparkles} label="AI" tone="violet" on={assistantOpen} onClick={onToggleAssistant}
-          title="AI plan assistant — summarize sheets, list trades, read schedules" show="md" />
+          title="AI plan assistant — summarize sheets, list trades, read schedules" show="sm" />
       </div>
 
       <div className="h-6 w-px bg-slate-800 mx-1 hidden sm:block" />
 
       {/* plan cluster */}
       <div className="flex items-center gap-1.5">
-        {!projectName && s.bg.type === "demo" && <HBtn icon={RotateCcw} label="Demo" onClick={s.resetDemo} title="Load demo plan" show="xl" />}
+        {!s.activeProjectId && s.bg.type === "demo" && <HBtn icon={RotateCcw} label="Demo" onClick={s.resetDemo} title="Load demo plan" show="xl" />}
         <HBtn icon={Upload} label={busy ? "Reading…" : "Upload"} onClick={() => fileRef.current?.click()} disabled={busy} spin={busy}
-          title="Upload a PDF or image plan" show="md" />
-        <HBtn icon={FileText} label="Proposal" tone="primary" onClick={onExport} title="Generate proposal PDF or CSV" show="md" />
+          title="Upload a PDF or image plan" show="sm" />
+        <HBtn icon={FileText} label="Proposal" tone="primary" onClick={onExport} title="Generate proposal PDF or CSV" show="sm" />
       </div>
 
       <input ref={fileRef} type="file" accept={ACCEPT} className="hidden" onChange={onFile} />
-    </header>
+    </div>
   );
 }

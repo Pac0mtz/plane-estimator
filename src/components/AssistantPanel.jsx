@@ -42,7 +42,7 @@ export default function AssistantPanel({ onClose }) {
   };
 
   return (
-    <div className="w-80 shrink-0 border-l border-slate-800 bg-slate-950 flex flex-col">
+    <div className="w-full md:w-80 shrink-0 border-l border-slate-800 bg-slate-950 flex flex-col max-md:fixed max-md:inset-0 max-md:z-[60] max-md:border-l-0">
       <div className="flex items-center gap-2 px-2 h-11 border-b border-slate-800">
         <Sparkles size={16} className="text-violet-400 shrink-0" />
         <span className="font-semibold text-sm flex-1 min-w-0 truncate">Plan assistant</span>

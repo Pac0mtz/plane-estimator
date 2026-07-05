@@ -4,7 +4,7 @@ import { useStore } from "../store/useStore.js";
 import { importPlanFile } from "../lib/importPlan.js";
 
 // Wraps the canvas so an estimator can drag a PDF or image straight onto it.
-export default function DropZone({ children }) {
+export default function DropZone({ children, className = "" }) {
   const [over, setOver] = useState(false);
   const depth = useRef(0);
 
@@ -17,7 +17,7 @@ export default function DropZone({ children }) {
   };
 
   return (
-    <div className="relative flex-1 flex min-w-0"
+    <div className={`relative flex-1 flex min-w-0 ${className}`}
       onDragEnter={(e) => { e.preventDefault(); depth.current++; setOver(true); }}
       onDragOver={(e) => e.preventDefault()}
       onDragLeave={() => { depth.current--; if (depth.current <= 0) setOver(false); }}

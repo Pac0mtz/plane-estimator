@@ -3,13 +3,35 @@
 @tailwind utilities;
 
 html, body, #root { height: 100%; margin: 0; }
-body { overscroll-behavior: none; }
+body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+
+@layer utilities {
+  .pb-mobile-nav {
+    padding-bottom: calc(3.25rem + env(safe-area-inset-bottom, 0px));
+  }
+  .bottom-mobile-nav {
+    bottom: calc(3.25rem + env(safe-area-inset-bottom, 0px));
+  }
+  .bottom-mobile-dock {
+    bottom: calc(6.75rem + env(safe-area-inset-bottom, 0px));
+  }
+  .takeoff-header {
+    /* Avoid host-app global `header { … }` rules collapsing the toolbar when embedded */
+    display: flex !important;
+  }
+}
 
 @layer components {
   .input {
     @apply w-full px-2.5 py-1.5 rounded bg-slate-950 border border-slate-700 text-sm text-slate-100
            placeholder:text-slate-600 focus:outline-none focus:border-brand;
   }
+}
+
+/* Plan Estimator page — hide host header description */
+html.plan-estimator-page .document-chrome-page-header p.text-muted-foreground,
+html.plan-estimator-page .document-chrome-toolbar-container p.text-xs.leading-snug {
+  display: none !important;
 }
 
 /* keyboard-only focus rings for accessibility (mouse clicks stay clean) */

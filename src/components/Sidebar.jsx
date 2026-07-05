@@ -28,7 +28,7 @@ export default function Sidebar() {
   const counts = { projects: projects.length, clients: clients.length };
 
   return (
-    <nav className={`${open ? "w-52" : "w-14"} shrink-0 border-r border-slate-800 bg-slate-950 flex flex-col transition-all duration-200`}>
+    <nav className={`hidden md:flex ${open ? "w-52" : "w-14"} shrink-0 border-r border-slate-800 bg-slate-950 flex-col transition-all duration-200`}>
       <div className={`flex items-center ${open ? "gap-2 px-2" : "justify-center px-1"} h-12 border-b border-slate-800`}>
         {open && (
           <>

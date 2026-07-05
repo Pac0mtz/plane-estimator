@@ -4,11 +4,14 @@ import { maybeAutoScale, loadPageIfNeeded } from "../lib/importPlan.js";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { Loader2, Search, Trash2, ChevronLeft, ChevronRight, Layers, GripHorizontal } from "lucide-react";
 import { PanelToggle } from "./PanelToggle.jsx";
+import { useIsMobile } from "../lib/useMedia.js";
 
 const SHEETS_H_KEY = "plan-forge-sheets-h";
 const MIN_H = 112;
 const MAX_H = 480;
 const DEFAULT_H = 168;
+const MOBILE_DEFAULT_H = 140;
+const MOBILE_MAX_H = 240;
 const CONTROLS_H = 34;
 const LABELS_H = 36;
 const THUMB_CACHE = new Map();
@@ -37,10 +40,11 @@ function thumbSize(page, maxH) {
 // eats canvas width. Drag the top edge to resize; thumbnails scale to fill.
 export default function PageRail() {
   const { pages, activePage, setPage, removePage, showSheets, toggleSheets } = useStore();
+  const isMobile = useIsMobile();
   const [loading, setLoading] = useState(null);
   const [q, setQ] = useState("");
   const [disc, setDisc] = useState("all");
-  const [panelH, setPanelH] = useState(loadSheetsH);
+  const [panelH, setPanelH] = useState(() => (typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches ? MOBILE_DEFAULT_H : loadSheetsH()));
   const scrollRef = useRef(null);
   const activeRef = useRef(null);
   const dragRef = useRef(null);
@@ -98,10 +102,13 @@ export default function PageRail() {
   }, [activePage, go]);
 
   const setHeight = useCallback((h) => {
-    const next = Math.max(MIN_H, Math.min(MAX_H, Math.round(h)));
+    const cap = isMobile ? MOBILE_MAX_H : MAX_H;
+    const next = Math.max(MIN_H, Math.min(cap, Math.round(h)));
     setPanelH(next);
-    try { localStorage.setItem(SHEETS_H_KEY, String(next)); } catch { /* ignore */ }
-  }, []);
+    if (!isMobile) {
+      try { localStorage.setItem(SHEETS_H_KEY, String(next)); } catch { /* ignore */ }
+    }
+  }, [isMobile]);
 
   const onResizeStart = (e) => {
     e.preventDefault();
@@ -146,7 +153,7 @@ export default function PageRail() {
   }
 
   return (
-    <div className="shrink-0 border-t border-slate-800 bg-slate-950 flex flex-col relative" style={{ height: panelH }}>
+    <div className="shrink-0 border-t border-slate-800 bg-slate-950 flex flex-col relative max-md:max-h-[min(38vh,240px)]" style={{ height: panelH }}>
       <div role="separator" aria-label="Resize sheet strip" title="Drag to resize · double-click to reset"
         onPointerDown={onResizeStart} onPointerMove={onResizeMove} onPointerUp={onResizeEnd} onPointerCancel={onResizeEnd}
         onDoubleClick={() => setHeight(DEFAULT_H)}
@@ -160,7 +167,7 @@ export default function PageRail() {
           <Layers size={12} className="text-brand" /> Sheets · {pages.length}
         </span>
 
-        <div className="relative flex-1 max-w-xs min-w-[120px]">
+        <div className="relative flex-1 max-w-xs min-w-[88px] md:min-w-[120px]">
           <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-500" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…"
             className="w-full pl-7 pr-2 py-1 rounded-md bg-slate-900 border border-slate-700 text-[11px] text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-brand" />

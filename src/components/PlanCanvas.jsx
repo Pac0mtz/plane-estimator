@@ -619,7 +619,7 @@ function UploadPrompt({ traceCount }) {
         <button onClick={() => ref.current?.click()} className="mt-3 inline-flex items-center gap-1.5 text-sm px-3.5 py-2 rounded-lg bg-brand hover:bg-brand2 text-white font-medium">
           <UploadCloud size={15} /> Upload plan
         </button>
-        {traceCount > 0 && <div className="text-[11px] text-amber-400/90 mt-3">You have {traceCount} saved trace{traceCount === 1 ? "" : "s"} — re-upload the same plan to see them.</div>}
+        {traceCount > 0 && <div className="text-[11px] text-emerald-400/90 mt-3">{traceCount} saved trace{traceCount === 1 ? "" : "s"} — they reload with the plan after refresh.</div>}
         <input ref={ref} type="file" accept={ACCEPT} className="hidden" onChange={onFile} />
       </div>
     </div>
@@ -628,10 +628,10 @@ function UploadPrompt({ traceCount }) {
 
 function ZoomControls({ onFit, onIn, onOut, pct, labelsOn, onToggleLabels }) {
   return (
-    <div className="absolute bottom-3 left-3 z-30 flex items-center gap-1 rounded-lg bg-slate-900/90 border border-slate-700 p-1 shadow-lg">
-      <button onClick={onOut} aria-label="Zoom out" className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-700 text-slate-200 text-lg leading-none">−</button>
-      <button onClick={onFit} aria-label="Reset zoom" className="px-2 h-7 rounded hover:bg-slate-700 text-slate-300 text-xs tabular-nums min-w-[3rem]">{pct}%</button>
-      <button onClick={onIn} aria-label="Zoom in" className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-700 text-slate-200 text-lg leading-none">+</button>
+    <div className="absolute bottom-3 left-3 max-md:bottom-2 max-md:left-2 z-30 flex items-center gap-1 rounded-lg bg-slate-900/90 border border-slate-700 p-1 shadow-lg touch-manipulation">
+      <button onClick={onOut} aria-label="Zoom out" className="w-8 h-8 md:w-7 md:h-7 flex items-center justify-center rounded hover:bg-slate-700 text-slate-200 text-lg leading-none">−</button>
+      <button onClick={onFit} aria-label="Reset zoom" className="px-2 h-8 md:h-7 rounded hover:bg-slate-700 text-slate-300 text-xs tabular-nums min-w-[3rem]">{pct}%</button>
+      <button onClick={onIn} aria-label="Zoom in" className="w-8 h-8 md:w-7 md:h-7 flex items-center justify-center rounded hover:bg-slate-700 text-slate-200 text-lg leading-none">+</button>
       <div className="w-px h-5 bg-slate-700 mx-0.5" />
       <button onClick={onFit} aria-label="Fit page to screen" title="Fit to screen (F)" className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-700 text-slate-200"><Maximize size={14} /></button>
       <button onClick={onToggleLabels} aria-label="Toggle labels" title={labelsOn ? "Hide labels — keep the sheet clean" : "Show all labels"}

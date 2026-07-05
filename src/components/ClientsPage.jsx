@@ -9,10 +9,10 @@ export default function ClientsPage() {
   const projectCount = (id) => projects.filter((p) => p.clientId === id).length;
 
   return (
-    <div className="flex-1 overflow-y-auto p-6">
-      <div className="flex items-center gap-3 mb-5 max-w-4xl mx-auto w-full">
-        <Users className="text-brand" />
-        <h1 className="text-xl font-bold">Clients</h1>
+    <div className="flex-1 overflow-y-auto p-4 md:p-6">
+      <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-5 max-w-4xl mx-auto w-full">
+        <Users className="text-brand shrink-0" />
+        <h1 className="text-lg md:text-xl font-bold">Clients</h1>
         <div className="flex-1" />
         <button onClick={() => setEditing({})}
           className="flex items-center gap-1.5 text-sm px-3 py-2 rounded bg-brand hover:bg-brand2 font-medium">

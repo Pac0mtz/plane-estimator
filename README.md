@@ -18,14 +18,21 @@ A left sidebar navigates four areas:
 | **Takeoff** | The canvas workspace — import a plan, browse sheets, ask the AI assistant, calibrate, trace, AI-detect, price it out. |
 | **Price book** | Full estimating catalog (19 assemblies across CSI divisions) with **material + labor + equipment** bare costs, **Overhead & Profit** markup, and a **location (city cost index) factor**. Search, add/remove rows & assemblies, **JSON/CSV export + JSON import** (load your own book). Edits reprice every project instantly. |
 
-Everything persists to `localStorage` (records + vectors). Rendered plan images don't
-persist — re-upload the plan after a refresh; your traces stay put.
+Everything persists to your **Neon Postgres** database (via `/api` routes) when `DATABASE_URL` is configured. The browser also keeps a local IndexedDB cache as fallback.
+
+Projects, clients, takeoffs, price book settings, and uploaded **plan files** (stored as `bytea` in Neon) sync automatically.
 
 ## Run it
 
 ```bash
 npm install
-npm run dev        # http://localhost:5173
+cp .env.example .env   # paste your Neon DATABASE_URL
+```
+
+Run the SQL in `neon/migrations/001_initial.sql` in your Neon console.
+
+```bash
+npm run dev            # starts API (8787) + Vite (5173)
 ```
 
 Build for production:
@@ -34,6 +41,8 @@ Build for production:
 npm run build      # outputs to /dist
 npm run preview
 ```
+
+Set `DATABASE_URL` in Vercel/host env for production. If the API lives on another host (e.g. Bid Studio), set `VITE_API_URL` in the frontend build.
 
 ## Deploy (Vercel)
 

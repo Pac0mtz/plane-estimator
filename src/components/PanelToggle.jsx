@@ -34,10 +34,10 @@ export function PanelToggle({ onClick, expanded, side = "left", axis = "horizont
 }
 
 /** Narrow vertical strip shown when a right-side panel is collapsed. */
-export function CollapsedRail({ onClick, side = "right", title, children }) {
+export function CollapsedRail({ onClick, side = "right", title, children, className = "" }) {
   const border = side === "right" ? "border-l" : "border-r";
   return (
-    <div className={`w-8 shrink-0 ${border} border-slate-800 bg-slate-950 flex flex-col items-center py-2 gap-2`}>
+    <div className={`w-8 shrink-0 ${border} border-slate-800 bg-slate-950 flex flex-col items-center py-2 gap-2 ${className}`}>
       <PanelToggle onClick={onClick} expanded={false} side={side} size="sm" title={title} />
       {children}
     </div>

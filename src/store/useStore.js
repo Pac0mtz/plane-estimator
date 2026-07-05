@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { ASSEMBLIES, DEFAULT_BOOK_META } from "../lib/assemblies.js";
+import { serializePlan, deletePlanFile } from "../lib/planStorage.js";
+import { isApiAvailable, deleteProjectFromApi } from "../lib/neonApi.js";
+import { queueNeonSync } from "../lib/neonSync.js";
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 const now = () => new Date().toISOString();
@@ -73,6 +76,12 @@ export const useStore = create(
       setBookMeta: (patch) => set((s) => ({ bookMeta: { ...s.bookMeta, ...patch } })),
       importProgress: null, // { stage, page, total, pct } while a PDF imports
       importPreview: null, // PDF preview modal state (see importPlan.js)
+      planKind: null, // "pdf" | "image" — set when a plan is loaded
+      planFileName: null,
+      planRestoring: false,
+      setPlanRestoring: (planRestoring) => set({ planRestoring }),
+      dbStatus: "local",
+      dbError: null,
       setImportPreview: (importPreview) => set({ importPreview }),
       patchImportPreview: (patch) =>
         set((s) => (s.importPreview ? { importPreview: { ...s.importPreview, ...patch } } : {})),
@@ -100,15 +109,20 @@ export const useStore = create(
       addClient: (data) => {
         const c = { id: uid(), name: "", company: "", email: "", phone: "", ...data };
         set((s) => ({ clients: [...s.clients, c] }));
+        queueNeonSync(get);
         return c.id;
       },
-      updateClient: (id, patch) =>
-        set((s) => ({ clients: s.clients.map((c) => (c.id === id ? { ...c, ...patch } : c)) })),
-      deleteClient: (id) =>
+      updateClient: (id, patch) => {
+        set((s) => ({ clients: s.clients.map((c) => (c.id === id ? { ...c, ...patch } : c)) }));
+        queueNeonSync(get);
+      },
+      deleteClient: (id) => {
         set((s) => ({
           clients: s.clients.filter((c) => c.id !== id),
           projects: s.projects.map((p) => (p.clientId === id ? { ...p, clientId: null } : p)),
-        })),
+        }));
+        queueNeonSync(get);
+      },
 
       // --------------------------------------------------------------- projects
       addProject: (data) => {
@@ -125,28 +139,49 @@ export const useStore = create(
         };
         delete p.trades;
         set((s) => ({ projects: [...s.projects, p] }));
+        queueNeonSync(get);
         return p.id;
       },
-      updateProject: (id, patch) =>
-        set((s) => ({ projects: s.projects.map((p) => (p.id === id ? { ...p, ...patch, updatedAt: now() } : p)) })),
-      deleteProject: (id) =>
+      updateProject: (id, patch) => {
+        set((s) => ({ projects: s.projects.map((p) => (p.id === id ? { ...p, ...patch, updatedAt: now() } : p)) }));
+        queueNeonSync(get);
+      },
+      deleteProject: (id) => {
+        deletePlanFile(id);
+        isApiAvailable().then((ok) => {
+          if (ok) deleteProjectFromApi(id).catch((e) => console.warn("Neon delete:", e));
+        });
         set((s) => ({
           projects: s.projects.filter((p) => p.id !== id),
           activeProjectId: s.activeProjectId === id ? null : s.activeProjectId,
-        })),
+        }));
+      },
 
       // write the live takeoff working-set back into its project record
-      saveActiveProject: () =>
+      saveActiveProject: () => {
         set((s) => {
           if (!s.activeProjectId) return {};
+          const plan = serializePlan(s);
           return {
             projects: s.projects.map((p) =>
               p.id === s.activeProjectId
-                ? { ...p, updatedAt: now(), takeoff: { layers: s.layers, traces: s.traces, ppf: s.ppf, ppfNote: s.ppfNote } }
+                ? {
+                    ...p,
+                    updatedAt: now(),
+                    takeoff: {
+                      layers: s.layers,
+                      traces: s.traces,
+                      ppf: s.ppf,
+                      ppfNote: s.ppfNote,
+                      plan,
+                    },
+                  }
                 : p
             ),
           };
-        }),
+        });
+        queueNeonSync(get);
+      },
 
       // load a project's takeoff into the live working-set and open the canvas
       openProject: (id) => {
@@ -173,6 +208,8 @@ export const useStore = create(
           draft: [],
           calib: [],
           suggestions: [],
+          planKind: null,
+          planFileName: null,
         });
       },
 
@@ -646,8 +683,10 @@ export const useStore = create(
       focusTarget: null,
       setFocusTarget: (focusTarget) => set({ focusTarget }),
 
-      loadImage: (href, imgEl) =>
+      loadImage: (href, imgEl, fileName = null) =>
         set({
+          planKind: "image",
+          planFileName: fileName,
           pages: [{ type: "img", href, w: imgEl.naturalWidth, h: imgEl.naturalHeight, loaded: true }],
           pageImgs: { 0: imgEl },
           activePage: 0,
@@ -661,8 +700,10 @@ export const useStore = create(
           tool: "calibrate",
         }),
 
-      loadPdf: (thumbs, sheetIndex = []) =>
+      loadPdf: (thumbs, sheetIndex = [], fileName = null) =>
         set({
+          planKind: "pdf",
+          planFileName: fileName,
           pages: thumbs.map((t) => ({
             type: "img", w: t.w, h: t.h, dpi: t.dpi, thumb: t.thumb, loaded: false,
             text: t.text || "", sheetNo: t.sheetNo || null, title: t.title || "", discipline: t.discipline || null,
@@ -847,7 +888,7 @@ export const useStore = create(
           }));
         }
       },
-      // vectors + records persist; rendered images (single or PDF pages) do not.
+      // vectors + records persist; rendered images re-load from IndexedDB on refresh.
       partialize: (s) => ({
         view: s.view,
         clients: s.clients,
